@@ -75,7 +75,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             .contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             let alert = NSAlert()
             alert.messageText = "Mini Typeless 已在运行"
-            alert.informativeText = "请先关闭另一份程序，再打开这一份。多个副本会同时响应右侧 Option。"
+            alert.informativeText = "请先退出另一份程序，再打开这一份。多个副本可能同时响应快捷键。"
             alert.runModal()
             NSApp.terminate(nil)
             return
@@ -99,9 +99,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         let title = NSTextField(labelWithString: "Mini Typeless · 文字整理 v3 测试")
         title.font = .boldSystemFont(ofSize: 19)
         root.addArrangedSubview(title)
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "先用 Touch ID 解锁本次运行。右侧 Option 按一次开始录音，再按一次自动转写、整理并尝试插入；不会自动发送聊天。旧密钥和旧程序仍保留。"))
+        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "先用 Touch ID 解锁本次运行。左下角 Fn／地球键按一次开始录音，再按一次自动转写、整理并尝试插入；不会自动发送聊天。旧密钥和旧程序仍保留。"))
         root.addArrangedSubview(NSTextField(labelWithString: "录音流程（仅在启用选项且焦点可确认时尝试插入；不会自动发送聊天）"))
-        _ = addButton("允许右侧 Option 快捷键", #selector(checkHotkeyPermission), to: root)
+        _ = addButton("允许 Fn 快捷键", #selector(checkHotkeyPermission), to: root)
         _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
         keySetupToggle = NSButton(title: "首次使用：保存自己的百炼 API Key", target: self, action: #selector(toggleKeySetup))
         root.addArrangedSubview(keySetupToggle)
@@ -125,7 +125,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         evaluationButtons.addArrangedSubview(evaluationCancelButton)
         root.addArrangedSubview(evaluationButtons)
         #endif
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "右侧 Option 单独按下并松开：开始录音；再按一次停止并上传处理。每次启动或 Mac 睡眠后需重新解锁一次。"))
+        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "Fn／地球键单独按下并松开：开始录音；再按一次停止并上传处理。每次启动或 Mac 睡眠后需重新解锁一次。"))
         let audioButtons = NSStackView()
         audioButtons.orientation = .horizontal
         audioButtons.spacing = 8
@@ -474,7 +474,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
         status.stringValue = trusted
-            ? "快捷键权限已允许。右侧 Option 单独按下并松开可开始／停止录音。"
+            ? "快捷键权限已允许。Fn／地球键单独按下并松开可开始／停止录音。"
             : "请在系统设置→隐私与安全性→辅助功能中允许 Mini Typeless Secure，然后退出并重新运行。"
     }
 
@@ -485,14 +485,14 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             if hotkeyArmed { hotkeyDirty = true }
             return
         }
-        let rightDown = (event.modifierFlags.rawValue & 0x40) != 0
-        let other = !event.modifierFlags.intersection([.command, .control, .shift, .function]).isEmpty
-            || (event.modifierFlags.rawValue & 0x20) != 0
-        if event.keyCode == 61 && rightDown && !hotkeyArmed {
+        let fnDown = event.modifierFlags.contains(.function)
+        let other = !event.modifierFlags.intersection([.command, .control, .shift, .option]).isEmpty
+        // kVK_Function = 0x3F. A standalone press/release triggers; combinations do not.
+        if event.keyCode == 0x3F && fnDown && !hotkeyArmed {
             hotkeyArmed = true
             hotkeyDirty = other
-        } else if hotkeyArmed && !rightDown {
-            let trigger = !hotkeyDirty && !other && event.keyCode == 61
+        } else if hotkeyArmed && !fnDown {
+            let trigger = !hotkeyDirty && !other && event.keyCode == 0x3F
             hotkeyArmed = false
             hotkeyDirty = false
             if trigger {

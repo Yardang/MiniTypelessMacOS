@@ -4,17 +4,17 @@
 
 ## 中文
 
-Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按下并松开**右侧 Option** 开始录音，再按一次停止；程序随后用阿里云百炼进行语音转写和轻量文字整理，并尝试把结果插入当前输入框。它不会自动发送聊天消息。
+Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按下并松开左下角 **Fn／地球键** 开始录音，再按一次停止；程序随后用阿里云百炼进行语音转写和轻量文字整理，并尝试把结果插入当前输入框。它不会自动发送聊天消息。
 
 ### 首次使用
 
 1. 用 Xcode 打开 `MiniTypelessSecure.xcodeproj`。在目标的 **Signing & Capabilities** 中选择你自己的 Team，并启用自动管理签名。若改动 Bundle Identifier，请同步修改 `MiniTypelessSecure/MiniTypelessSecure.entitlements` 中 `keychain-access-groups` 的应用标识，保持两者一致。
 2. 在阿里云百炼创建**你自己的北京区 API Key**。运行程序，展开“首次使用：保存自己的百炼 API Key”，粘贴并点击“存入本机 Touch ID 钥匙串”。如果本机已有密钥，程序不会覆盖它。
-3. 点击“用 Touch ID 解锁本次运行”。按界面提示授予麦克风、辅助功能和输入监控权限，然后把光标放到目标输入框，使用右侧 Option 开始和停止录音。
+3. 点击“用 Touch ID 解锁本次运行”。按界面提示授予麦克风、辅助功能和输入监控权限，然后把光标放到目标输入框，使用 Fn／地球键开始和停止录音。若 macOS 同时切换输入法或打开表情面板，可在“系统设置 → 键盘”中把“按 Fn／地球键”设为“无操作”。
 
 每次重新启动程序或 Mac 睡眠后，需要重新解锁一次。本次运行的后续请求复用内存中的密钥。录音处理完成后删除；识别文字和最新结果只保存在当前窗口的内存里。自动插入仅在程序可以确认焦点的已验证应用中尝试；失败时可从窗口复制结果。最长录音时间为 120 秒。
 
-点击窗口左上角红叉只关闭窗口，程序和右侧 Option 快捷键会继续运行；点击 Dock 中的图标可重新打开窗口。要真正退出，请在菜单栏选择 **Mini Typeless Secure → 退出**（或按 Command-Q）。退出后内存中的密钥会清除，下次启动需要再次使用 Touch ID。
+点击窗口左上角红叉只关闭窗口，程序和 Fn 快捷键会继续运行；点击 Dock 中的图标可重新打开窗口。要真正退出，请在菜单栏选择 **Mini Typeless Secure → 退出**（或按 Command-Q）。退出后内存中的密钥会清除，下次启动需要再次使用 Touch ID。
 
 **密钥与费用：** 此仓库不含作者的 API Key。克隆或下载代码不会获得作者的钥匙串项目；每位使用者都需要创建并保存自己的 Key，并自行承担对应的阿里云用量。不要把密钥写入源码、README、提交记录或 Issue。语音转写和文字整理会把本次录音及转写文字发送给百炼；请勿用私人或敏感内容测试。
 
@@ -22,17 +22,17 @@ Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按�
 
 ## English
 
-Mini Typeless is an experimental Chinese dictation app for macOS. Press and release the **right Option** key to start recording, then repeat to stop. The app transcribes audio with Alibaba Cloud Bailian, lightly cleans up the text, and attempts to insert it into the active input field. It does not send chat messages automatically.
+Mini Typeless is an experimental Chinese dictation app for macOS. Press and release the **Fn/Globe** key at the lower left to start recording, then repeat to stop. The app transcribes audio with Alibaba Cloud Bailian, lightly cleans up the text, and attempts to insert it into the active input field. It does not send chat messages automatically.
 
 ### Getting started
 
 1. Open `MiniTypelessSecure.xcodeproj` in Xcode. Under the target's **Signing & Capabilities**, select your own Team and enable automatic signing. If you change the Bundle Identifier, update the app identifier in `keychain-access-groups` in `MiniTypelessSecure/MiniTypelessSecure.entitlements` to match.
 2. Create **your own Beijing-region Bailian API key**. Run the app, expand “首次使用：保存自己的百炼 API Key” (First use: save your own Bailian API key), paste the key, and click “存入本机 Touch ID 钥匙串” (Save to local Touch ID keychain). An existing key is never overwritten by this action.
-3. Click “用 Touch ID 解锁本次运行” (Unlock this session with Touch ID). Grant the requested microphone, Accessibility, and Input Monitoring permissions. Focus the target input field, then use the right Option key to start and stop recording.
+3. Click “用 Touch ID 解锁本次运行” (Unlock this session with Touch ID). Grant the requested microphone, Accessibility, and Input Monitoring permissions. Focus the target input field, then use Fn/Globe to start and stop recording. If macOS also switches input sources or opens the emoji panel, set “Press Fn/Globe key to” to “Do Nothing” in System Settings → Keyboard.
 
 Unlock once after each app launch or Mac sleep; subsequent requests in that session reuse the key in memory. Temporary audio is deleted after processing, and transcripts and results remain in window memory. Insertion is attempted only in verified apps when the input focus can be confirmed; otherwise copy the result from the app. Recordings are limited to 120 seconds.
 
-The red window close button hides the window while the app and right Option shortcut continue running. Click the Dock icon to reopen the window. To quit fully, choose **Mini Typeless Secure → Quit** from the menu bar or press Command-Q. Quitting clears the in-memory key, so the next launch requires Touch ID again.
+The red window close button hides the window while the app and Fn shortcut continue running. Click the Dock icon to reopen the window. To quit fully, choose **Mini Typeless Secure → Quit** from the menu bar or press Command-Q. Quitting clears the in-memory key, so the next launch requires Touch ID again.
 
 **Keys and costs:** The author's API key is **not** in this repository. Cloning or downloading the project does not copy the author's macOS keychain item. Each user must provide their own key and is responsible for their own Alibaba Cloud usage. Never put a key in source files, README, commits, or issues. The app sends the current audio and transcript to Bailian for transcription and refinement; avoid testing with sensitive content.
 
