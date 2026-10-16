@@ -20,6 +20,8 @@ Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按�
 
 目前语音转写使用 `qwen-audio-3.1-asr-flash`，文字整理使用 `qwen3.8-flash`。两者分别调用；请在百炼核对两个模型的额度及账户状态。账户欠费时，即使仍有免费额度，请求也可能被拒绝。3.1 版 ASR 的免费额度按 Token 计量，与 3.0 版的音频秒数额度分开。
 
+窗口中的“用量与费用预估”从本版开始，按天在本机记录成功请求返回的 Token 数、录音时长和整理结果字数，不保存文字内容。它按北京区公开原价（两模型均为输入 ¥0.8／百万 Token、输出 ¥2.7／百万 Token）估算今日、本月和按已记录日均推算的整月费用；尚未扣除免费额度，也不包含其他阿里云服务。请求未返回完整 Token、取消后云端仍完成的请求及旧版本用量可能不在统计中，请以百炼账单为准。30 条文字测试和密钥迁移检查中的成功调用也计入整理 Token。
+
 这是实验版本，文字整理偶尔会偏离原意；自动插入也可能因目标应用或系统权限而失败。请检查结果后再使用。Debug 构建提供“运行 30 条文字整理测试”按钮，使用合成文字逐条调用模型，不录音、不插入。两轮测试及限制见 [evaluation/README.md](evaluation/README.md)。
 
 ## English
@@ -39,5 +41,7 @@ The red window close button hides the window while the app and Fn shortcut conti
 **Keys and costs:** The author's API key is **not** in this repository. Cloning or downloading the project does not copy the author's macOS keychain item. Each user must provide their own key and is responsible for their own Alibaba Cloud usage. Never put a key in source files, README, commits, or issues. The app sends the current audio and transcript to Bailian for transcription and refinement; avoid testing with sensitive content.
 
 The app currently uses `qwen-audio-3.1-asr-flash` for transcription and `qwen3.8-flash` for text refinement. These are separate model calls. Check both quotas and the account balance in Model Studio; overdue accounts may be blocked even with remaining free quota. The 3.1 ASR free quota is measured in tokens, separately from the 3.0 model's audio-seconds quota.
+
+The in-app usage and cost panel stores daily counts locally, starting with this build: reported tokens, recording duration, and output character counts, without transcript content. It estimates today's and this month's list-price cost and projects a full month from the average since tracking started. The estimate does not deduct free quota or include other Alibaba Cloud services. Missing token reports, canceled requests that still complete in the cloud, and older builds may be absent. Use the Alibaba Cloud bill as the source of truth. Successful 30-case evaluations and key-migration API checks also count toward text-model tokens.
 
 This is an experimental build. Text refinement can occasionally change meaning, and insertion can fail depending on the target app or system permissions. Review the output before use. Debug builds include a 30-case synthetic text evaluation that calls the refinement model without recording or inserting. Results and limitations are in [evaluation/README.md](evaluation/README.md).

@@ -4,6 +4,33 @@ import ApplicationServices
 import LocalAuthentication
 import Security
 
+private struct UsageDay: Codable {
+    var asrInput = 0
+    var asrOutput = 0
+    var textInput = 0
+    var textOutput = 0
+    var audioSeconds = 0.0
+    var outputCharacters = 0
+    var asrCalls = 0
+    var textCalls = 0
+    var callsWithoutTokens = 0
+
+    var asrCost: Double { (Double(asrInput) * 0.8 + Double(asrOutput) * 2.7) / 1_000_000 }
+    var textCost: Double { (Double(textInput) * 0.8 + Double(textOutput) * 2.7) / 1_000_000 }
+
+    mutating func add(_ other: UsageDay) {
+        asrInput += other.asrInput
+        asrOutput += other.asrOutput
+        textInput += other.textInput
+        textOutput += other.textOutput
+        audioSeconds += other.audioSeconds
+        outputCharacters += other.outputCharacters
+        asrCalls += other.asrCalls
+        textCalls += other.textCalls
+        callsWithoutTokens += other.callsWithoutTokens
+    }
+}
+
 @MainActor
 final class SecureProbe: NSObject, NSApplicationDelegate {
     private let account = "mini-typeless"
@@ -19,6 +46,11 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var status: NSTextField!
     private var timingView: NSTextField!
+    private var usageToggle = NSButton()
+    private var usageTools = NSStackView()
+    private var usageView = NSTextField()
+    private let usageStorageKey = "MiniTypeless.UsageByDay.v1"
+    private var usageByDay: [String: UsageDay] = [:]
     private var timingHistory: [String] = []
     private var completedRecordingSeconds: TimeInterval = 0
     private var processingStartedAt: Date?
@@ -82,8 +114,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             return
         }
         clearAudio()
+        loadUsage()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 850, height: 770), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "Mini Typeless · 文字整理 v3 测试"
+        window.title = "Mini Typeless · 用量预估测试"
         window.center()
         window.contentView = NSView()
         let root = NSStackView()
@@ -97,7 +130,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             root.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -26),
             root.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 26)
         ])
-        let title = NSTextField(labelWithString: "Mini Typeless · 文字整理 v3 测试")
+        let title = NSTextField(labelWithString: "Mini Typeless · 用量预估测试")
         title.font = .boldSystemFont(ofSize: 19)
         root.addArrangedSubview(title)
         root.addArrangedSubview(NSTextField(wrappingLabelWithString: "先用 Touch ID 解锁本次运行。左下角 Fn／地球键按一次开始录音，再按一次自动转写、整理并尝试插入；不会自动发送聊天。旧密钥和旧程序仍保留。"))
@@ -148,6 +181,18 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         timingView = NSTextField(wrappingLabelWithString: "本次运行耗时：尚无完成的录音。")
         timingView.maximumNumberOfLines = 4
         root.addArrangedSubview(timingView)
+        usageToggle = NSButton(title: "展开用量与费用预估", target: self, action: #selector(toggleUsage))
+        root.addArrangedSubview(usageToggle)
+        usageTools.orientation = .vertical
+        usageTools.alignment = .leading
+        usageTools.spacing = 6
+        usageView = NSTextField(wrappingLabelWithString: "")
+        usageView.widthAnchor.constraint(equalToConstant: 790).isActive = true
+        usageTools.addArrangedSubview(usageView)
+        usageTools.addArrangedSubview(NSTextField(wrappingLabelWithString: "只存本机的日期和用量数字；不保存录音或文字。按北京区公开原价估算，未扣免费额度；以百炼账单为准。"))
+        usageTools.isHidden = true
+        root.addArrangedSubview(usageTools)
+        refreshUsageView()
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
@@ -249,7 +294,80 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
     }
 
     private func updateWindowSize() {
-        window.setContentSize(NSSize(width: 850, height: 770 + (legacyTools.isHidden ? 0 : 140) + (keySetupTools.isHidden ? 0 : 70)))
+        window.setContentSize(NSSize(width: 850, height: 770 + (legacyTools.isHidden ? 0 : 140) + (keySetupTools.isHidden ? 0 : 70) + (usageTools.isHidden ? 0 : 150)))
+    }
+
+    @objc private func toggleUsage() {
+        let expanded = usageTools.isHidden
+        usageTools.isHidden = !expanded
+        usageToggle.title = expanded ? "收起用量与费用预估" : "展开用量与费用预估"
+        if expanded { refreshUsageView() }
+        updateWindowSize()
+    }
+
+    private func loadUsage() {
+        guard let data = UserDefaults.standard.data(forKey: usageStorageKey),
+              let saved = try? JSONDecoder().decode([String: UsageDay].self, from: data) else { return }
+        usageByDay = saved
+    }
+
+    private func dayKey(_ date: Date = Date()) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private func recordUsage(_ response: [String: Any], asr: Bool, audioSeconds: Double = 0) {
+        let usage = response["usage"] as? [String: Any]
+        let input = (usage?[asr ? "input_tokens" : "prompt_tokens"] as? NSNumber)?.intValue
+        let output = (usage?[asr ? "output_tokens" : "completion_tokens"] as? NSNumber)?.intValue
+        var change = UsageDay()
+        if asr {
+            change.asrCalls = 1
+            change.audioSeconds = audioSeconds
+            change.asrInput = max(0, input ?? 0)
+            change.asrOutput = max(0, output ?? 0)
+        } else {
+            change.textCalls = 1
+            change.textInput = max(0, input ?? 0)
+            change.textOutput = max(0, output ?? 0)
+        }
+        if input == nil || output == nil { change.callsWithoutTokens = 1 }
+        updateUsage(change)
+    }
+
+    private func recordOutputCharacters(_ count: Int) {
+        var change = UsageDay()
+        change.outputCharacters = count
+        updateUsage(change)
+    }
+
+    private func updateUsage(_ change: UsageDay) {
+        let key = dayKey()
+        var day = usageByDay[key] ?? UsageDay()
+        day.add(change)
+        usageByDay[key] = day
+        if let data = try? JSONEncoder().encode(usageByDay) {
+            UserDefaults.standard.set(data, forKey: usageStorageKey)
+        }
+        refreshUsageView()
+    }
+
+    private func refreshUsageView() {
+        let today = usageByDay[dayKey()] ?? UsageDay()
+        let monthKey = String(dayKey().prefix(7))
+        var month = UsageDay()
+        for (date, day) in usageByDay where date.hasPrefix(monthKey) { month.add(day) }
+        let currentDay = Calendar.current.component(.day, from: Date())
+        let firstRecordedDay = usageByDay.keys.filter { $0.hasPrefix(monthKey) }.min()
+        let firstDay = firstRecordedDay.flatMap { Int($0.suffix(2)) } ?? currentDay
+        let elapsedDays = max(1, currentDay - firstDay + 1)
+        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+        let projected = (month.asrCost + month.textCost) * Double(daysInMonth) / Double(elapsedDays)
+        let todayLine = "今天：录音 \(String(format: "%.1f", today.audioSeconds / 60)) 分钟｜输出 \(today.outputCharacters) 字｜ASR \(today.asrInput)/\(today.asrOutput) Token｜整理 \(today.textInput)/\(today.textOutput) Token｜原价约 ¥\(String(format: "%.4f", today.asrCost + today.textCost))"
+        let monthLine = "本月：录音 \(String(format: "%.1f", month.audioSeconds / 60)) 分钟｜输出 \(month.outputCharacters) 字｜ASR \(month.asrInput)/\(month.asrOutput) Token｜整理 \(month.textInput)/\(month.textOutput) Token"
+        let costLine = "本月原价估算：ASR ¥\(String(format: "%.4f", month.asrCost)) + 整理 ¥\(String(format: "%.4f", month.textCost)) = ¥\(String(format: "%.4f", month.asrCost + month.textCost))；按已记录日均推算整月约 ¥\(String(format: "%.2f", projected))"
+        let noteLine = "统计自本版启用后开始；\(month.callsWithoutTokens) 次成功请求未返回完整 Token，未计入价格。"
+        usageView.stringValue = [todayLine, monthLine, costLine, noteLine].joined(separator: "\n")
     }
 
     @objc private func saveOwnKey() {
@@ -823,6 +941,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                     self.status.stringValue = self.responseFailure("转写", http: http, data: data)
                     return
                 }
+                self.recordUsage(object, asr: true, audioSeconds: self.completedRecordingSeconds)
                 self.currentRaw = raw
                 self.resultView.string = "原始转写：\n\(raw)\n\n整理结果：\n正在整理……"
                 self.status.stringValue = "转写完成，正在用本次运行已解锁的密钥整理文字……"
@@ -862,8 +981,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                     return
                 }
                 let http = (response as? HTTPURLResponse)?.statusCode ?? 0
-                guard http == 200, let data = data,
-                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let object = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                if http == 200, let object { self.recordUsage(object, asr: false) }
+                guard http == 200, let object,
                       let choices = object["choices"] as? [[String: Any]],
                       let message = choices.first?["message"] as? [String: Any],
                       let refined = message["content"] as? String, !refined.isEmpty else {
@@ -878,6 +998,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                 }
                 self.resultView.string = "原始转写：\n\(raw)\n\n整理结果：\n\(refined)"
                 self.latestSuccess = refined
+                self.recordOutputCharacters(refined.count)
                 self.latestView.string = refined
                 self.copyButton.isEnabled = true
                 self.clearButton.isEnabled = true
@@ -976,8 +1097,10 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                     do {
                         let (data, response) = try await URLSession.shared.data(for: request)
                         let http = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                        if http == 200, let object { self.recordUsage(object, asr: false) }
                         if http == 200,
-                           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           let object,
                            let choices = object["choices"] as? [[String: Any]],
                            let message = choices.first?["message"] as? [String: Any],
                            let text = message["content"] as? String, !text.isEmpty {
@@ -1066,8 +1189,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                     return
                 }
                 let http = (response as? HTTPURLResponse)?.statusCode ?? 0
-                guard http == 200, let data = data,
-                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let object = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                if http == 200, let object { self.recordUsage(object, asr: false) }
+                guard http == 200, let object,
                       let choices = object["choices"] as? [[String: Any]],
                       let message = choices.first?["message"] as? [String: Any],
                       let text = message["content"] as? String, !text.isEmpty else {
