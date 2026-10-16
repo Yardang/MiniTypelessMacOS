@@ -1,13 +1,35 @@
-# Mini Typeless
+# Mini Typeless for macOS
 
-macOS 中文口述转写与轻量整理实验。按右侧 Option 开始、停止录音；录音结束后调用阿里云百炼 ASR 和文字模型，并在可确认的输入框中尝试插入结果，不自动发送聊天。
+[中文](#中文) · [English](#english)
 
-## 当前状态
+## 中文
 
-这是个人开发中的测试版本。Touch ID 解锁后，API Key 只在本次运行的内存中复用；密钥存于本机钥匙串，不写入项目文件。录音使用临时文件，处理后删除。旧钥匙串项目仍保留。自动插入只在已验证的应用和输入框中尝试，失败时结果留在程序窗口。
+Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按下并松开**右侧 Option** 开始录音，再按一次停止；程序随后用阿里云百炼进行语音转写和轻量文字整理，并尝试把结果插入当前输入框。它不会自动发送聊天消息。
 
-使用 Xcode 打开 `MiniTypelessSecure.xcodeproj`，选择自己的开发团队并在本机编译。需要 macOS 麦克风、辅助功能和输入监控等权限。百炼 API Key 必须由使用者自行在本机配置；仓库不包含密钥。
+### 首次使用
 
-## 测试
+1. 用 Xcode 打开 `MiniTypelessSecure.xcodeproj`。在目标的 **Signing & Capabilities** 中选择你自己的 Team，并启用自动管理签名。若改动 Bundle Identifier，请同步修改 `MiniTypelessSecure/MiniTypelessSecure.entitlements` 中 `keychain-access-groups` 的应用标识，保持两者一致。
+2. 在阿里云百炼创建**你自己的北京区 API Key**。运行程序，展开“首次使用：保存自己的百炼 API Key”，粘贴并点击“存入本机 Touch ID 钥匙串”。如果本机已有密钥，程序不会覆盖它。
+3. 点击“用 Touch ID 解锁本次运行”。按界面提示授予麦克风、辅助功能和输入监控权限，然后把光标放到目标输入框，使用右侧 Option 开始和停止录音。
 
-Debug 构建包含“运行 30 条文字整理测试”按钮，使用预写的合成文字逐条调用整理模型，不录音、不插入。两轮结果与限制见 [`evaluation/README.md`](evaluation/README.md)。
+每次重新启动程序或 Mac 睡眠后，需要重新解锁一次。本次运行的后续请求复用内存中的密钥。录音处理完成后删除；识别文字和最新结果只保存在当前窗口的内存里。自动插入仅在程序可以确认焦点的已验证应用中尝试；失败时可从窗口复制结果。最长录音时间为 120 秒。
+
+**密钥与费用：** 此仓库不含作者的 API Key。克隆或下载代码不会获得作者的钥匙串项目；每位使用者都需要创建并保存自己的 Key，并自行承担对应的阿里云用量。不要把密钥写入源码、README、提交记录或 Issue。语音转写和文字整理会把本次录音及转写文字发送给百炼；请勿用私人或敏感内容测试。
+
+这是实验版本，文字整理偶尔会偏离原意；自动插入也可能因目标应用或系统权限而失败。请检查结果后再使用。Debug 构建提供“运行 30 条文字整理测试”按钮，使用合成文字逐条调用模型，不录音、不插入。两轮测试及限制见 [evaluation/README.md](evaluation/README.md)。
+
+## English
+
+Mini Typeless is an experimental Chinese dictation app for macOS. Press and release the **right Option** key to start recording, then repeat to stop. The app transcribes audio with Alibaba Cloud Bailian, lightly cleans up the text, and attempts to insert it into the active input field. It does not send chat messages automatically.
+
+### Getting started
+
+1. Open `MiniTypelessSecure.xcodeproj` in Xcode. Under the target's **Signing & Capabilities**, select your own Team and enable automatic signing. If you change the Bundle Identifier, update the app identifier in `keychain-access-groups` in `MiniTypelessSecure/MiniTypelessSecure.entitlements` to match.
+2. Create **your own Beijing-region Bailian API key**. Run the app, expand “首次使用：保存自己的百炼 API Key” (First use: save your own Bailian API key), paste the key, and click “存入本机 Touch ID 钥匙串” (Save to local Touch ID keychain). An existing key is never overwritten by this action.
+3. Click “用 Touch ID 解锁本次运行” (Unlock this session with Touch ID). Grant the requested microphone, Accessibility, and Input Monitoring permissions. Focus the target input field, then use the right Option key to start and stop recording.
+
+Unlock once after each app launch or Mac sleep; subsequent requests in that session reuse the key in memory. Temporary audio is deleted after processing, and transcripts and results remain in window memory. Insertion is attempted only in verified apps when the input focus can be confirmed; otherwise copy the result from the app. Recordings are limited to 120 seconds.
+
+**Keys and costs:** The author's API key is **not** in this repository. Cloning or downloading the project does not copy the author's macOS keychain item. Each user must provide their own key and is responsible for their own Alibaba Cloud usage. Never put a key in source files, README, commits, or issues. The app sends the current audio and transcript to Bailian for transcription and refinement; avoid testing with sensitive content.
+
+This is an experimental build. Text refinement can occasionally change meaning, and insertion can fail depending on the target app or system permissions. Review the output before use. Debug builds include a 30-case synthetic text evaluation that calls the refinement model without recording or inserting. Results and limitations are in [evaluation/README.md](evaluation/README.md).

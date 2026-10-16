@@ -38,6 +38,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
     private var deleteButton = NSButton()
     private var legacyTools = NSStackView()
     private var legacyToggle = NSButton()
+    private var keySetupTools = NSStackView()
+    private var keySetupToggle = NSButton()
+    private var keyInput = NSSecureTextField()
     private var recorder: AVAudioRecorder?
     private var recordingTimer: Timer?
     private var hotkeyMonitors: [Any] = []
@@ -100,6 +103,17 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         root.addArrangedSubview(NSTextField(labelWithString: "录音流程（仅在启用选项且焦点可确认时尝试插入；不会自动发送聊天）"))
         _ = addButton("允许右侧 Option 快捷键", #selector(checkHotkeyPermission), to: root)
         _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
+        keySetupToggle = NSButton(title: "首次使用：保存自己的百炼 API Key", target: self, action: #selector(toggleKeySetup))
+        root.addArrangedSubview(keySetupToggle)
+        keySetupTools.orientation = .vertical
+        keySetupTools.alignment = .leading
+        keySetupTools.spacing = 6
+        keyInput.placeholderString = "粘贴你自己的百炼北京区 API Key"
+        keyInput.widthAnchor.constraint(equalToConstant: 500).isActive = true
+        keySetupTools.addArrangedSubview(keyInput)
+        _ = addButton("存入本机 Touch ID 钥匙串", #selector(saveOwnKey), to: keySetupTools)
+        keySetupTools.isHidden = true
+        root.addArrangedSubview(keySetupTools)
         #if DEBUG
         let evaluationButtons = NSStackView()
         evaluationButtons.orientation = .horizontal
@@ -216,7 +230,36 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         let expanded = legacyTools.isHidden
         legacyTools.isHidden = !expanded
         legacyToggle.title = expanded ? "收起密钥迁移检查" : "展开已完成的密钥迁移检查"
-        window.setContentSize(NSSize(width: 850, height: expanded ? 910 : 770))
+        updateWindowSize()
+    }
+
+    @objc private func toggleKeySetup() {
+        let expanded = keySetupTools.isHidden
+        keySetupTools.isHidden = !expanded
+        keySetupToggle.title = expanded ? "收起 API Key 设置" : "首次使用：保存自己的百炼 API Key"
+        updateWindowSize()
+    }
+
+    private func updateWindowSize() {
+        window.setContentSize(NSSize(width: 850, height: 770 + (legacyTools.isHidden ? 0 : 140) + (keySetupTools.isHidden ? 0 : 70)))
+    }
+
+    @objc private func saveOwnKey() {
+        let key = keyInput.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            status.stringValue = "请先粘贴你自己的百炼 API Key。"
+            return
+        }
+        let code = addProtected(Data(key.utf8), service: newService)
+        keyInput.stringValue = ""
+        switch code {
+        case errSecSuccess:
+            status.stringValue = "API Key 已存入本机 Touch ID 钥匙串。请点击上方按钮解锁本次运行。"
+        case errSecDuplicateItem:
+            status.stringValue = "本机已有受保护的 API Key；没有覆盖。请直接解锁本次运行。"
+        default:
+            status.stringValue = "API Key 保存失败（系统返回码 \(code)）；请检查签名和钥匙串设置。"
+        }
     }
 
     @objc private func autoInsertSettingChanged() {
