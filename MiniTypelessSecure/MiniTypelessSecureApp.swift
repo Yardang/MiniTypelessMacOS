@@ -550,17 +550,33 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         return "\(stage)请求失败（系统代码 \((error as NSError).code)）；\(retained)。不会自动重试。"
     }
 
-    private func responseFailure(_ stage: String, http: Int) -> String {
+    private func responseFailure(_ stage: String, http: Int, data: Data?) -> String {
         let retained = stage == "转写" ? "录音已删除，未调用整理模型" : "原始转写保留，录音已删除"
         let reason: String
         switch http {
+        case 400: reason = "云端拒绝了请求"
         case 401, 403: reason = "认证或访问权限被拒绝"
         case 429: reason = "请求过于频繁或额度受限"
         case 500...599: reason = "云端服务暂时不可用"
         case 200: reason = "服务未返回可用文字"
         default: reason = "服务未返回可用文字"
         }
-        return "\(stage)失败：\(reason)（HTTP \(http)）；\(retained)。不会自动重试。"
+        var details: [String] = []
+        if let data,
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let error = object["error"] as? [String: Any]
+            for (label, value) in [("错误代码", error?["code"] as? String ?? object["code"] as? String),
+                                   ("请求 ID", object["request_id"] as? String)] {
+                if let value,
+                   !value.isEmpty,
+                   value.count <= 80,
+                   value.unicodeScalars.allSatisfy({ CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-").contains($0) }) {
+                    details.append("\(label)：\(value)")
+                }
+            }
+        }
+        let diagnostic = details.isEmpty ? "" : "，" + details.joined(separator: "，")
+        return "\(stage)失败：\(reason)（HTTP \(http)\(diagnostic)）；\(retained)。不会自动重试。"
     }
 
     @objc private func cancelProcessing() {
@@ -803,7 +819,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                       let output = object["output"] as? [String: Any],
                       let raw = output["text"] as? String, !raw.isEmpty else {
                     self.finishPipeline()
-                    self.status.stringValue = self.responseFailure("转写", http: http)
+                    self.status.stringValue = self.responseFailure("转写", http: http, data: data)
                     return
                 }
                 self.currentRaw = raw
@@ -851,7 +867,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                       let message = choices.first?["message"] as? [String: Any],
                       let refined = message["content"] as? String, !refined.isEmpty else {
                     self.resultView.string = "原始转写：\n\(raw)\n\n整理结果：\n未整理"
-                    self.status.stringValue = self.responseFailure("整理", http: http)
+                    self.status.stringValue = self.responseFailure("整理", http: http, data: data)
                     return
                 }
                 guard self.refinementIsPlausible(raw: raw, refined: refined) else {
