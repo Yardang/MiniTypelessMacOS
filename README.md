@@ -18,6 +18,8 @@ Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按�
 
 **密钥与费用：** 此仓库不含作者的 API Key。克隆或下载代码不会获得作者的钥匙串项目；每位使用者都需要创建并保存自己的 Key，并自行承担对应的阿里云用量。不要把密钥写入源码、README、提交记录或 Issue。语音转写和文字整理会把本次录音及转写文字发送给百炼；请勿用私人或敏感内容测试。
 
+目前语音转写使用 `qwen-audio-3.0-asr-flash`，文字整理使用 `qwen3.8-flash`。两者分别调用；请在百炼核对两个模型的额度及账户状态。账户欠费时，即使仍有免费额度，请求也可能被拒绝。
+
 这是实验版本，文字整理偶尔会偏离原意；自动插入也可能因目标应用或系统权限而失败。请检查结果后再使用。Debug 构建提供“运行 30 条文字整理测试”按钮，使用合成文字逐条调用模型，不录音、不插入。两轮测试及限制见 [evaluation/README.md](evaluation/README.md)。
 
 ## English
@@ -35,5 +37,7 @@ Unlock once after each app launch or Mac sleep; subsequent requests in that sess
 The red window close button hides the window while the app and Fn shortcut continue running. Click the Dock icon to reopen the window. To quit fully, choose **Mini Typeless Secure → Quit** from the menu bar or press Command-Q. Quitting clears the in-memory key, so the next launch requires Touch ID again.
 
 **Keys and costs:** The author's API key is **not** in this repository. Cloning or downloading the project does not copy the author's macOS keychain item. Each user must provide their own key and is responsible for their own Alibaba Cloud usage. Never put a key in source files, README, commits, or issues. The app sends the current audio and transcript to Bailian for transcription and refinement; avoid testing with sensitive content.
+
+The app currently uses `qwen-audio-3.0-asr-flash` for transcription and `qwen3.8-flash` for text refinement. These are separate model calls. Check both quotas and the account balance in Model Studio; overdue accounts may be blocked even with remaining free quota.
 
 This is an experimental build. Text refinement can occasionally change meaning, and insertion can fail depending on the target app or system permissions. Review the output before use. Debug builds include a 30-case synthetic text evaluation that calls the refinement model without recording or inserting. Results and limitations are in [evaluation/README.md](evaluation/README.md).

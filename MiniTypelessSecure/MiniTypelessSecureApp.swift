@@ -12,6 +12,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
     private let dummyService = "MiniTypeless-Secure-Dummy-v1"
     private let dummy = Data("Mini Typeless 假数据；不是 API Key".utf8)
     private let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
+    private let refinementModel = "qwen3.8-flash"
     private let asrEndpoint = URL(string: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation")!
     private let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("MiniTypeless-\(UUID().uuidString).wav")
     private let maxRecordingSeconds: TimeInterval = 120
@@ -834,9 +835,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
 
     private func refine(_ raw: String, key: String, asrSeconds: TimeInterval, requestID: UUID) {
         let body: [String: Any] = [
-            "model": "qwen-flash",
+            "model": refinementModel,
             "messages": [["role": "system", "content": refinementPrompt], ["role": "user", "content": refinementUserMessage(raw)]],
-            "stream": false, "temperature": 0.1, "max_tokens": 1200
+            "stream": false, "temperature": 0.1, "max_tokens": 1200, "enable_thinking": false
         ]
         guard let json = try? JSONSerialization.data(withJSONObject: body) else {
             finishPipeline()
@@ -945,7 +946,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             return
         }
         let reportURL = FileManager.default.temporaryDirectory.appendingPathComponent("MiniTypeless-Prompt-Evaluation-\(UUID().uuidString).md")
-        var report = "# Mini Typeless 文字整理测试\n\n模型：qwen-flash；共 30 条合成文字；仅测试整理，不录音、不自动插入。\n\n"
+        var report = "# Mini Typeless 文字整理测试\n\n模型：\(refinementModel)；共 30 条合成文字；仅测试整理，不录音、不自动插入。\n\n"
         guard (try? report.write(to: reportURL, atomically: true, encoding: .utf8)) != nil else {
             status.stringValue = "无法创建文字测试报告；尚未调用百炼。"
             return
@@ -960,9 +961,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                 if Task.isCancelled { break }
                 let started = Date()
                 let body: [String: Any] = [
-                    "model": "qwen-flash",
+                    "model": self.refinementModel,
                     "messages": [["role": "system", "content": self.refinementPrompt], ["role": "user", "content": self.refinementUserMessage(item.raw)]],
-                    "stream": false, "temperature": 0.1, "max_tokens": 1200
+                    "stream": false, "temperature": 0.1, "max_tokens": 1200, "enable_thinking": false
                 ]
                 var output = "请求准备失败"
                 if let json = try? JSONSerialization.data(withJSONObject: body) {
@@ -1037,12 +1038,12 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             return
         }
         let body: [String: Any] = [
-            "model": "qwen-flash",
+            "model": refinementModel,
             "messages": [
                 ["role": "system", "content": "只做轻度中文口述整理，处理明确的自我纠正，只返回整理后的文字。"],
                 ["role": "user", "content": "周五下午三点，不对，周六下午三点开会。"]
             ],
-            "stream": false, "temperature": 0.1, "max_tokens": 80
+            "stream": false, "temperature": 0.1, "max_tokens": 80, "enable_thinking": false
         ]
         guard let json = try? JSONSerialization.data(withJSONObject: body) else {
             status.stringValue = "请求准备失败；未调用 API。"
