@@ -781,7 +781,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
         }
         processingStartedAt = Date()
         let body: [String: Any] = [
-            "model": "qwen-audio-3.0-asr-flash",
+            "model": "qwen-audio-3.1-asr-flash",
             "input": ["messages": [["role": "user", "content": [["type": "input_audio", "input_audio": ["data": "data:audio/wav;base64,\(audio.base64EncodedString())"]]]]]],
             "parameters": ["format": "wav", "sample_rate": "16000"]
         ]
