@@ -897,6 +897,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
             status.stringValue = "本次运行尚未解锁；录音未上传。请先点击“用 Touch ID 解锁本次运行”，再点击转写并整理。"
             return
         }
+        let recordingSeconds = completedRecordingSeconds
         processingStartedAt = Date()
         let body: [String: Any] = [
             "model": "qwen-audio-3.1-asr-flash",
@@ -941,18 +942,18 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                     self.status.stringValue = self.responseFailure("转写", http: http, data: data)
                     return
                 }
-                self.recordUsage(object, asr: true, audioSeconds: self.completedRecordingSeconds)
+                self.recordUsage(object, asr: true, audioSeconds: recordingSeconds)
                 self.currentRaw = raw
                 self.resultView.string = "原始转写：\n\(raw)\n\n整理结果：\n正在整理……"
                 self.status.stringValue = "转写完成，正在用本次运行已解锁的密钥整理文字……"
-                self.refine(raw, key: key, asrSeconds: asrSeconds, requestID: requestID)
+                self.refine(raw, key: key, asrSeconds: asrSeconds, recordingSeconds: recordingSeconds, requestID: requestID)
             }
         }
         activeTask = task
         task.resume()
     }
 
-    private func refine(_ raw: String, key: String, asrSeconds: TimeInterval, requestID: UUID) {
+    private func refine(_ raw: String, key: String, asrSeconds: TimeInterval, recordingSeconds: TimeInterval, requestID: UUID) {
         let body: [String: Any] = [
             "model": refinementModel,
             "messages": [["role": "system", "content": refinementPrompt], ["role": "user", "content": refinementUserMessage(raw)]],
@@ -1004,7 +1005,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate {
                 self.clearButton.isEnabled = true
                 self.insertButton.isEnabled = true
                 let overall = self.processingStartedAt.map { Date().timeIntervalSince($0) } ?? 0
-                let line = String(format: "第 %d 段：录音 %.1f 秒｜ASR %.1f 秒｜整理 %.1f 秒｜处理合计 %.1f 秒", self.timingHistory.count + 1, self.completedRecordingSeconds, asrSeconds, Date().timeIntervalSince(started), overall)
+                let line = String(format: "第 %d 段：录音 %.1f 秒｜ASR %.1f 秒｜整理 %.1f 秒｜处理合计 %.1f 秒", self.timingHistory.count + 1, recordingSeconds, asrSeconds, Date().timeIntervalSince(started), overall)
                 self.timingHistory.append(line)
                 self.timingView.stringValue = "本次运行耗时：\n" + self.timingHistory.suffix(3).joined(separator: "\n")
                 let insertionState = self.autoInsertCheck.state == .on
