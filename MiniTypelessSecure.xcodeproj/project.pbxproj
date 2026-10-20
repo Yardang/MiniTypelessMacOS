@@ -8,12 +8,30 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000002 /* MiniTypelessSecureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* MiniTypelessSecureApp.swift */; };
+		A10000000000000000000014 /* InputFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* InputFocus.swift */; };
+		A10000000000000000000022 /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* RecordingController.swift */; };
+		A10000000000000000000024 /* AudioChunks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* AudioChunks.swift */; };
+		A10000000000000000000026 /* DictationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* DictationPipeline.swift */; };
+		A10000000000000000000028 /* InsertionDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* InsertionDestination.swift */; };
+		A10000000000000000000032 /* ServiceDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000031 /* ServiceDiagnostic.swift */; };
+		A10000000000000000000034 /* ASRDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000033 /* ASRDiagnostics.swift */; };
+		A10000000000000000000036 /* DiagnosticSpeech.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* DiagnosticSpeech.wav */; };
+		A10000000000000000000038 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* DiagnosticLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* MiniTypelessSecureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTypelessSecureApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* InputFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputFocus.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* MiniTypelessSecure.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MiniTypelessSecure.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000003 /* MiniTypelessSecure.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MiniTypelessSecure.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000021 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
+		A10000000000000000000023 /* AudioChunks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunks.swift; sourceTree = "<group>"; };
+		A10000000000000000000025 /* DictationPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationPipeline.swift; sourceTree = "<group>"; };
+		A10000000000000000000027 /* InsertionDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertionDestination.swift; sourceTree = "<group>"; };
+		A10000000000000000000031 /* ServiceDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceDiagnostic.swift; sourceTree = "<group>"; };
+		A10000000000000000000033 /* ASRDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRDiagnostics.swift; sourceTree = "<group>"; };
+		A10000000000000000000035 /* DiagnosticSpeech.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Resources/DiagnosticSpeech.wav; sourceTree = "<group>"; };
+		A10000000000000000000037 /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,6 +57,15 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000001 /* MiniTypelessSecureApp.swift */,
+				A10000000000000000000021 /* RecordingController.swift */,
+				A10000000000000000000023 /* AudioChunks.swift */,
+				A10000000000000000000025 /* DictationPipeline.swift */,
+				A10000000000000000000035 /* DiagnosticSpeech.wav */,
+				A10000000000000000000033 /* ASRDiagnostics.swift */,
+				A10000000000000000000037 /* DiagnosticLog.swift */,
+				A10000000000000000000031 /* ServiceDiagnostic.swift */,
+				A10000000000000000000027 /* InsertionDestination.swift */,
+				A10000000000000000000013 /* InputFocus.swift */,
 				A10000000000000000000012 /* MiniTypelessSecure.entitlements */,
 			);
 			path = MiniTypelessSecure;
@@ -107,6 +134,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000036 /* DiagnosticSpeech.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +146,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000002 /* MiniTypelessSecureApp.swift in Sources */,
+				A10000000000000000000022 /* RecordingController.swift in Sources */,
+				A10000000000000000000024 /* AudioChunks.swift in Sources */,
+				A10000000000000000000026 /* DictationPipeline.swift in Sources */,
+				A10000000000000000000034 /* ASRDiagnostics.swift in Sources */,
+				A10000000000000000000038 /* DiagnosticLog.swift in Sources */,
+				A10000000000000000000032 /* ServiceDiagnostic.swift in Sources */,
+				A10000000000000000000028 /* InsertionDestination.swift in Sources */,
+				A10000000000000000000014 /* InputFocus.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

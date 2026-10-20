@@ -1,0 +1,164 @@
+import Foundation
+import ApplicationServices
+
+struct InputFocusSnapshot<Element: Equatable> {
+    let element: Element
+    let selection: NSRange
+    let source: String
+
+    func matches(_ other: Self) -> Bool {
+        element == other.element && selection == other.selection
+    }
+}
+
+enum InputFocusResult<Element: Equatable> {
+    case found(InputFocusSnapshot<Element>)
+    case unavailable
+    case rejected
+    case limitReached
+}
+
+// The lookup policy is independent of AX IPC so missing focus, stale focus, and
+// unsafe targets can be reproduced in tests without touching another app.
+struct InputFocusReader<Element: Equatable> {
+    let app: Element
+    let system: Element
+    let focusedElement: (Element) -> Element?
+    let focusedWindow: (Element) -> Element?
+    let children: (Element) -> [Element]
+    let isFocused: (Element) -> Bool
+    let role: (Element) -> String
+    let subrole: (Element) -> String
+    let selection: (Element) -> NSRange?
+    let belongsToApp: (Element) -> Bool
+
+    private func snapshot(_ element: Element, source: String) -> InputFocusResult<Element> {
+        guard belongsToApp(element), subrole(element) != kAXSecureTextFieldSubrole,
+              [kAXTextAreaRole, kAXTextFieldRole].contains(role(element)),
+              let range = selection(element), range.location != NSNotFound,
+              range.location >= 0, range.length >= 0 else { return .rejected }
+        return .found(InputFocusSnapshot(element: element, selection: range, source: source))
+    }
+
+    func resolve(deadline: Date, nodeLimit: Int = 200) -> InputFocusResult<Element> {
+        var sawNonTextFocus = false
+        for (root, source) in [(app, "应用焦点"), (system, "系统焦点")] {
+            guard Date() < deadline else { return .limitReached }
+            guard let element = focusedElement(root) else { continue }
+            guard belongsToApp(element), subrole(element) != kAXSecureTextFieldSubrole else { return .rejected }
+            if [kAXTextAreaRole, kAXTextFieldRole].contains(role(element)) {
+                return snapshot(element, source: source)
+            }
+            // A focused web area or container may expose the actual editor below it.
+            // Do not treat the container itself as an editable field.
+            sawNonTextFocus = true
+        }
+
+        guard Date() < deadline else { return .limitReached }
+        guard let window = focusedWindow(app), belongsToApp(window) else {
+            return sawNonTextFocus ? .rejected : .unavailable
+        }
+        var pending = [window]
+        var visited: [Element] = []
+        var candidate: InputFocusSnapshot<Element>?
+        while let element = pending.popLast() {
+            guard Date() < deadline, visited.count < nodeLimit else { return .limitReached }
+            if visited.contains(element) { continue }
+            visited.append(element)
+            guard belongsToApp(element) else { continue }
+            if isFocused(element) {
+                if subrole(element) == kAXSecureTextFieldSubrole { return .rejected }
+                let elementRole = role(element)
+                if [kAXTextAreaRole, kAXTextFieldRole].contains(elementRole) {
+                    guard case .found(let found) = snapshot(element, source: "窗口内焦点"), candidate == nil else {
+                        return .rejected
+                    }
+                    candidate = found
+                } else if ![kAXWindowRole, kAXGroupRole, kAXScrollAreaRole, "AXWebArea"].contains(elementRole) {
+                    // A focused button or other control is not an insertion target.
+                    return .rejected
+                }
+            }
+            let next = children(element)
+            guard next.count + pending.count + visited.count <= nodeLimit else { return .limitReached }
+            pending.append(contentsOf: next.reversed())
+        }
+        if let candidate { return .found(candidate) }
+        return sawNonTextFocus ? .rejected : .unavailable
+    }
+}
+
+struct AXInputElement: Equatable {
+    let raw: AXUIElement
+    static func == (lhs: Self, rhs: Self) -> Bool { CFEqual(lhs.raw, rhs.raw) }
+}
+
+final class AXInputFocusLookup {
+    private let pid: pid_t
+    private let app: AXInputElement
+    private let system = AXInputElement(raw: AXUIElementCreateSystemWide())
+    private(set) var appFocusCode = AXError.failure
+    private(set) var systemFocusCode = AXError.failure
+
+    init(pid: pid_t) {
+        self.pid = pid
+        app = AXInputElement(raw: AXUIElementCreateApplication(pid))
+    }
+
+    private func value(_ element: AXInputElement, _ attribute: String) -> CFTypeRef? {
+        AXUIElementSetMessagingTimeout(element.raw, 0.1)
+        var result: CFTypeRef?
+        let code = AXUIElementCopyAttributeValue(element.raw, attribute as CFString, &result)
+        if attribute == kAXFocusedUIElementAttribute {
+            if element == app { appFocusCode = code }
+            if element == system { systemFocusCode = code }
+        }
+        return code == .success ? result : nil
+    }
+
+    private func element(_ parent: AXInputElement, _ attribute: String) -> AXInputElement? {
+        guard let result = value(parent, attribute), CFGetTypeID(result) == AXUIElementGetTypeID() else { return nil }
+        return AXInputElement(raw: result as! AXUIElement)
+    }
+
+    func enableElectronAccessibility() {
+        AXUIElementSetMessagingTimeout(app.raw, 0.1)
+        _ = AXUIElementSetAttributeValue(app.raw, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
+    func resolve(deadline: Date) -> InputFocusResult<AXInputElement> {
+        let reader = InputFocusReader(
+            app: app, system: system,
+            focusedElement: { self.element($0, kAXFocusedUIElementAttribute) },
+            focusedWindow: { self.element($0, kAXFocusedWindowAttribute) },
+            children: { element in
+                // Read a bounded number of child references; never read their text values.
+                AXUIElementSetMessagingTimeout(element.raw, 0.1)
+                var count: CFIndex = 0
+                guard AXUIElementGetAttributeValueCount(element.raw, kAXChildrenAttribute as CFString, &count) == .success,
+                      count > 0 else { return [] }
+                var result: CFArray?
+                guard AXUIElementCopyAttributeValues(element.raw, kAXChildrenAttribute as CFString, 0, min(count, 201), &result) == .success,
+                      let values = result as? [AXUIElement] else { return [] }
+                return values.map { AXInputElement(raw: $0) }
+            },
+            isFocused: { self.value($0, kAXFocusedAttribute) as? Bool == true },
+            role: { self.value($0, kAXRoleAttribute) as? String ?? "" },
+            subrole: { self.value($0, kAXSubroleAttribute) as? String ?? "" },
+            selection: { element in
+                guard let value = self.value(element, kAXSelectedTextRangeAttribute),
+                      CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+                let axValue = value as! AXValue
+                var range = CFRange()
+                guard AXValueGetType(axValue) == .cfRange, AXValueGetValue(axValue, .cfRange, &range),
+                      range.location >= 0, range.length >= 0 else { return nil }
+                return NSRange(location: range.location, length: range.length)
+            },
+            belongsToApp: { element in
+                var owner: pid_t = 0
+                return AXUIElementGetPid(element.raw, &owner) == .success && owner == self.pid
+            }
+        )
+        return reader.resolve(deadline: deadline)
+    }
+}
