@@ -47,6 +47,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let refinementModel = "qwen3.8-flash"
     private let recording: RecordingController
     private let pipeline: DictationPipeline
+    private var lifecycle = SessionLifecycle()
+    private let requestMicrophone: (@escaping @Sendable (Bool) -> Void) -> Void
     private let diagnostics: DiagnosticLog
     private var recordingStartTarget: InsertionDestination?
     private var recordingTarget: InsertionDestination?
@@ -117,8 +119,10 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     4. 有明显的意思分层时，自然分段；仅对明确并列的步骤或条目编号。
     """
 
-    init(recording: RecordingController? = nil, pipeline: DictationPipeline? = nil, persistUsage: ((Data) -> Void)? = nil, diagnostics: DiagnosticLog? = nil) {
+    init(recording: RecordingController? = nil, pipeline: DictationPipeline? = nil, persistUsage: ((Data) -> Void)? = nil, diagnostics: DiagnosticLog? = nil,
+         requestMicrophone: ((@escaping @Sendable (Bool) -> Void) -> Void)? = nil) {
         self.recording = recording ?? RecordingController()
+        self.requestMicrophone = requestMicrophone ?? { AVCaptureDevice.requestAccess(for: .audio, completionHandler: $0) }
         self.pipeline = pipeline ?? DictationPipeline()
         #if LAYOUT_TEST
         self.diagnostics = diagnostics ?? DiagnosticLog(enabled: false)
@@ -146,6 +150,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showRecoveryLayoutTest() { recoveryTools.isHidden = false }
     func cancelWorkflowTest() { cancelProcessing() }
     func sleepWorkflowTest() { handleSleep() }
+    func wakeWorkflowTest() { handleWake() }
+    var unlockedWorkflowTest: Bool { sessionKey != nil }
+    var deferredWorkflowTest: Bool { lifecycle.deferredAudio != nil }
     var workflowTestState: (busy: Bool, result: String?, raw: String?, status: String) {
         (busy, latestSuccess, currentRaw, status.stringValue)
     }
@@ -183,7 +190,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // AppKit's default release-on-close is incompatible with that ARC ownership.
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.title = "Mini Typeless · 稳定性与诊断修复"
+        window.title = "Mini Typeless · 睡眠待机与连续录音"
         window.contentMinSize = NSSize(width: 720, height: 520)
         if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
             var frame = window.frame
@@ -230,7 +237,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -26),
             footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16)
         ])
-        let title = NSTextField(labelWithString: "Mini Typeless · 稳定性与诊断修复")
+        let title = NSTextField(labelWithString: "Mini Typeless · 睡眠待机与连续录音")
         title.font = .boldSystemFont(ofSize: 19)
         root.addArrangedSubview(title)
         root.addArrangedSubview(NSTextField(wrappingLabelWithString: "先用 Touch ID 解锁本次运行。左下角 Fn／地球键按一次开始录音，再按一次自动转写、整理并尝试插入；不会自动发送聊天。旧密钥和旧程序仍保留。"))
@@ -273,7 +280,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         root.addArrangedSubview(diagnosticScroll)
         diagnosticScroll.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
         #endif
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "Fn／地球键单独按下并松开：开始录音；再按一次停止并上传处理。每次启动或 Mac 睡眠后需重新解锁一次。"))
+        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "Fn／地球键单独按下并松开：开始录音；再按一次停止并上传处理。每次启动解锁一次；睡眠后仍可使用。新录音成功开始会替换待重试录音。"))
         let audioButtons = NSStackView()
         audioButtons.orientation = .horizontal
         audioButtons.spacing = 8
@@ -415,10 +422,26 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    @objc private func handleWake() { diagnostics.record(.wake) }
+    @objc private func handleWake() {
+        diagnostics.record(.wake)
+        let wasSleeping = lifecycle.isSleeping
+        let deferred = lifecycle.wake()
+        guard wasSleeping else { return }
+        if let deferred, recording.completed?.url == deferred, !busy {
+            diagnostics.record(.wakeProcessingStarted)
+            recoveryPending = false // First upload of this sleep-ended take, not a retry.
+            processRecording()
+        } else {
+            setBusy(busy)
+            showInsertionStatus(sessionKey == nil
+                ? "已唤醒；请先用 Touch ID 解锁本次运行，再开始录音。"
+                : "已唤醒，可以按 Fn 开始录音。新录音成功开始会自动替换待重试录音。")
+        }
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         diagnostics.record(.terminationRequested)
+        lifecycle.invalidateDeferredAudio()
         #if DEBUG
         evaluationTask?.cancel()
         evaluationTask = nil
@@ -886,29 +909,28 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func handleSleep() {
+        guard lifecycle.beginSleep() else { return }
         diagnostics.record(.sleep, operation: activeRequestID)
         insertionGeneration += 1
         insertionPending = false
-        setInsertionButtonsEnabled(latestSuccess != nil)
         #if DEBUG
         evaluationTask?.cancel()
         evaluationTask = nil
         evaluationButton.isEnabled = true
         evaluationCancelButton.isEnabled = false
         #endif
-        sessionKey = nil
+        // Keep the already-unlocked in-memory session until actual app exit.
         micPermissionGeneration += 1
         micPermissionPending = false
         if activeRequestID != nil { cancelProcessing() }
-        // Finished takes survive sleep so an interrupted request remains retryable.
-        // An actively recording take is discarded without triggering an upload.
+        // The stop callback observes isSleeping and defers this first upload.
+        if recording.isRecording { recording.stop(.sleep) }
         if recording.completed != nil { recoveryPending = true }
-        else { clearAudio() }
         recordButton.title = "开始录音"
         setBusy(false)
-        status.stringValue = recoveryPending
-            ? "Mac 即将睡眠；处理已停止，已结束录音仍在本次运行中保留。唤醒后解锁可重试，也可另存；退出程序会删除临时录音。"
-            : "Mac 即将睡眠；本次录音和处理已停止，录音已删除。"
+        showInsertionStatus(lifecycle.deferredAudio != nil
+            ? "已结束睡前录音，等待唤醒后自动转写。程序保持待机。"
+            : "程序保持待机，唤醒后可继续使用；已中断的云端处理可手动重试，也可直接开始新录音。")
     }
 
     private func setBusy(_ value: Bool) {
@@ -917,8 +939,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         evaluationButton.isEnabled = !value
         #endif
         buttons.forEach { $0.isEnabled = !value }
-        recordButton.isEnabled = !value && !recoveryPending
-        processButton.isEnabled = !value && !recording.isRecording && recording.completed != nil
+        recordButton.isEnabled = !value && !lifecycle.isSleeping
+        processButton.isEnabled = !value && !lifecycle.isSleeping && !recording.isRecording && recording.completed != nil
         cancelButton.isEnabled = value && activeRequestID != nil
         deleteButton.isEnabled = !value
         refreshRecoveryControls()
@@ -956,10 +978,11 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             resultView.string = ""
         }
-        showInsertionStatus("已取消处理；录音保留到本次运行结束，可重试或另存。迟到结果不会显示。云端可能已处理，重试可能重复计费。")
+        showInsertionStatus("已取消处理；录音保留到本次运行结束，可重试或另存。下一次成功开始录音会自动替换它。迟到结果不会显示。云端可能已处理，重试可能重复计费。")
     }
 
     private func clearAudio() {
+        lifecycle.invalidateDeferredAudio()
         recording.discard()
         recoveryPending = false
         refreshRecoveryControls()
@@ -967,7 +990,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func refreshRecoveryControls() {
         recoveryTools.isHidden = !recoveryPending
-        let available = recoveryPending && recording.completed != nil && !busy
+        let available = recoveryPending && recording.completed != nil && !busy && !lifecycle.isSleeping
         for button in [retryButton, exportAudioButton, discardRecoveryButton] { button.isEnabled = available }
     }
 
@@ -991,13 +1014,20 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func configureRecording() {
         recording.onStopped = { [weak self] audio, reason in
             guard let self else { return }
-            self.diagnostics.record(reason == .timeLimit ? .recordingLimitReached : .recordingStopped, seconds: audio.duration)
+            self.diagnostics.record(reason == .sleep ? .recordingPausedForSleep : (reason == .timeLimit ? .recordingLimitReached : .recordingStopped), seconds: audio.duration)
             self.recordingTarget = InsertionDestinationPolicy.capture(
                 current: InsertionDestination.current(), started: self.recordingStartTarget,
                 ownPID: ProcessInfo.processInfo.processIdentifier)
             self.buttons.forEach { $0.isEnabled = true }
             self.recordButton.title = "开始录音"
             self.processButton.isEnabled = true
+            if self.lifecycle.isSleeping {
+                self.lifecycle.deferUntilWake(audio.url)
+                self.recoveryPending = true
+                self.setBusy(false)
+                self.status.stringValue = "睡前录音已保留，唤醒后自动处理。"
+                return
+            }
             self.status.stringValue = reason == .timeLimit
                 ? "已达到 10 分钟上限，正在自动转写并整理……"
                 : "录音结束，正在自动转写并整理……"
@@ -1029,13 +1059,14 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func toggleRecording() {
         diagnostics.record(.recordingRequested)
-        guard !busy, !insertionPending, !micPermissionPending else { return }
+        guard !busy, !insertionPending, !micPermissionPending, !lifecycle.isSleeping else { return }
         if recording.isRecording {
             recording.stop()
             return
         }
-        guard !recoveryPending else {
-            showInsertionStatus("还有待重试录音；请先重试，或另存后点击“删除待重试录音”，再开始新录音。退出程序会删除临时副本。")
+        guard sessionKey != nil else {
+            diagnostics.record(.recordingBlockedLocked)
+            showInsertionStatus("请先点击“用 Touch ID 解锁本次运行”，再按 Fn 开始录音；解锁会保持到程序退出。")
             return
         }
         // Capture before the asynchronous permission callback can change the foreground.
@@ -1046,27 +1077,32 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         micPermissionPending = true
         micPermissionGeneration += 1
         let permissionGeneration = micPermissionGeneration
-        AVCaptureDevice.requestAccess(for: .audio) { [weak self] allowed in
+        requestMicrophone { [weak self] allowed in
             DispatchQueue.main.async {
                 guard let self, self.micPermissionGeneration == permissionGeneration else { return }
                 self.micPermissionPending = false
                 guard allowed else {
                     self.diagnostics.record(.microphoneDenied)
-                    self.status.stringValue = "麦克风权限未获允许，请到系统设置中检查。"
+                    self.showInsertionStatus("麦克风权限未获允许，请到系统设置中检查。上一段待重试录音仍保留。")
                     return
                 }
                 do {
-                    try self.recording.start()
+                    let replaced = self.recording.completed != nil
+                    try self.recording.start(replacingCompleted: true)
+                    self.lifecycle.invalidateDeferredAudio()
+                    self.recoveryPending = false
+                    self.refreshRecoveryControls()
+                    if replaced { self.diagnostics.record(.recordingReplaced) }
                     self.diagnostics.record(.recordingStarted)
                     self.recordButton.title = "停止录音"
                     self.buttons.forEach { $0.isEnabled = false }
                     self.processButton.isEnabled = false
                     self.setInsertionButtonsEnabled(false)
-                    self.status.stringValue = "正在录音，最长 10 分钟；再按 Fn 或达到上限后，自动转写、整理并尝试插入。"
+                    self.showInsertionStatus("正在录音，最长 10 分钟；再按 Fn 或达到上限后自动处理。若有上一段待重试录音，已自动替换。")
                 } catch {
-                    self.clearAudio()
+                    self.refreshRecoveryControls()
                     self.diagnostics.record(.recordingFailed, failure: .classify(error))
-                    self.status.stringValue = "录音启动失败，请检查麦克风权限。"
+                    self.showInsertionStatus("录音启动失败，请检查麦克风；若有上一段待重试录音，仍为你保留。")
                 }
             }
         }
@@ -1104,7 +1140,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         sessionKey = key
-        status.stringValue = "本次运行已解锁。之后录音处理复用内存中的密钥；关闭程序或 Mac 睡眠后清除。"
+        status.stringValue = "本次运行已解锁。之后录音处理复用内存中的密钥；退出程序后清除；Mac 睡眠不需要重新解锁。"
     }
 
     private func addProtected(_ data: Data, service: String) -> OSStatus {
@@ -1176,14 +1212,14 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func processRecording() {
-        guard !busy, !insertionPending, !micPermissionPending, !recording.isRecording, let audio = recording.completed else {
+        guard !busy, !insertionPending, !micPermissionPending, !lifecycle.isSleeping, !recording.isRecording, let audio = recording.completed else {
             status.stringValue = "没有可处理的已结束录音。"
             return
         }
         let wasRetry = recoveryPending
         recoveryPending = true
         refreshRecoveryControls()
-        recordButton.isEnabled = false
+        recordButton.isEnabled = true
         guard let key = sessionKey else {
             diagnostics.record(.processingBlockedLocked)
             status.stringValue = "本次运行尚未解锁；录音未上传。请先点击“用 Touch ID 解锁本次运行”，再点击转写并整理。"
@@ -1260,7 +1296,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if wasRetry, let previousRaw { self.currentRaw = previousRaw }
                 self.finishPipeline()
                 let message = DictationFailure.describe(error)
-                    + "；本次未插入。录音保留到本次运行结束，可重试或另存；退出会删除临时副本。不会自动重试，手动重试可能重复计费。"
+                    + "；本次未插入。录音保留到本次运行结束，可重试或另存；下一次成功开始录音或退出会删除临时副本。不会自动重试，手动重试可能重复计费。"
                 if let raw = self.currentRaw {
                     self.resultView.string = "已转写内容（转写中断时可能不完整）：\n\(raw)\n\n本次未完成整理或检查，未插入。\n\(message)"
                 } else {

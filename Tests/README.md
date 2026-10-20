@@ -1,3 +1,7 @@
+# 自动化测试入口
+
+在仓库根目录执行 `scripts/test.sh`，运行全部七组离线回归。仅使用合成音频、模拟网络和临时目录，不读取真实密钥或操作麦克风。产物路径由脚本打印，任一失败立即停止。当前验收规则以 [PRD](../docs/PRD.md) 为准；下文较早的人工清单保留其历史范围。
+
 # Layout regression checks
 
 Run from the repository root on macOS with Xcode installed:
@@ -98,3 +102,9 @@ xcrun swiftc -D DEBUG -D LAYOUT_TEST \
 ```
 
 Exercises 25 actual window close/reopen cycles and verifies lifecycle events, clean termination, error-field privacy, file permissions, bounded rotation, unavailable storage and disabled logging. WorkflowRegression additionally closes/reopens during recording, processing and after success, checking preserved state and production event emission without text/key leakage. Test logs use disposable temporary directories; normal workflow/layout tests disable production logging. See [crash evidence and diagnostic limits](../docs/stability-diagnostics-2026-10-19.md).
+
+## Sleep / continuous recording regression (CHG-20261020-01)
+
+`SleepRecoveryRegression.swift` maps to AC-SLP-01/02/03/04, AC-REC-01/02/03 and AC-SEC-01. Tests retain the unlocked session across sleep, first-upload deferral, duplicate notifications, deadline/delegate races, replacement after successful start, failures before replacement, stale permission callbacks, deletion/exit invalidation and failed wake upload without automatic retry. WorkflowRegression covers AC-SLP-05 in both network stages. Earlier assertions requiring sleep re-unlock and blocking Fn for a retryable take were deliberately superseded; their old expectations are not current requirements.
+
+Real system sleep, microphone delivery immediately before sleep and target-app focus after wake remain a short manual acceptance check; fake notifications do not prove hardware behavior.

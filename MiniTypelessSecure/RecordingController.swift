@@ -6,7 +6,7 @@ struct RecordedAudio {
     let duration: TimeInterval
 }
 
-enum RecordingStopReason { case user, timeLimit }
+enum RecordingStopReason { case user, timeLimit, sleep }
 
 @MainActor
 protocol RecordingDevice: AnyObject {
@@ -52,7 +52,7 @@ final class RecordingController {
     private var device: RecordingDevice?
     private var cancelTimer: (() -> Void)?
     private var generation = UUID()
-    let url: URL
+    private(set) var url: URL
     var onStopped: ((RecordedAudio, RecordingStopReason) -> Void)?
     var onFailure: (() -> Void)?
     private(set) var completed: RecordedAudio?
@@ -72,26 +72,41 @@ final class RecordingController {
         }
     }
 
-    func start() throws {
-        // A new take must not silently overwrite a recoverable completed take.
-        guard completed == nil else { throw CocoaError(.fileWriteFileExists) }
-        discard()
+    func start(replacingCompleted: Bool = false) throws {
+        guard !isRecording else { throw CocoaError(.fileWriteFileExists) }
+        guard completed == nil || replacingCompleted else { throw CocoaError(.fileWriteFileExists) }
+        let previous = completed
+        // Never let a failed microphone start overwrite the previous take.
+        let candidate = previous == nil ? url : url.deletingLastPathComponent()
+            .appendingPathComponent("MiniTypeless-\(UUID()).wav")
         let token = UUID()
         generation = token
-        let next = try makeDevice(url)
-        device = next
-        next.finished = { [weak self] success in
-            guard let self, self.generation == token, self.isRecording else { return }
-            if success { self.stop(.timeLimit) }
-            else { self.discard(); self.onFailure?() }
-        }
-        guard next.record(forDuration: Self.maximumDuration) else {
-            discard()
-            throw CocoaError(.fileWriteUnknown)
-        }
-        cancelTimer = schedule(Self.maximumDuration) { [weak self] in
-            guard let self, self.generation == token else { return }
-            self.stop(.timeLimit)
+        do {
+            let next = try makeDevice(candidate)
+            device = next
+            next.finished = { [weak self] success in
+                guard let self, self.generation == token, self.isRecording else { return }
+                if success { self.stop(.timeLimit) }
+                else { self.discard(); self.onFailure?() }
+            }
+            guard next.record(forDuration: Self.maximumDuration) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            url = candidate
+            completed = nil
+            if let previous { try? FileManager.default.removeItem(at: previous.url) }
+            cancelTimer = schedule(Self.maximumDuration) { [weak self] in
+                guard let self, self.generation == token else { return }
+                self.stop(.timeLimit)
+            }
+        } catch {
+            generation = UUID()
+            device?.finished = nil
+            device?.stop()
+            device = nil
+            try? FileManager.default.removeItem(at: candidate)
+            // completed and url still refer to the previous successful take.
+            throw error
         }
     }
 

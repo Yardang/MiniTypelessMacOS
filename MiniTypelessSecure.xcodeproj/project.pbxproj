@@ -17,6 +17,7 @@
 		A10000000000000000000034 /* ASRDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000033 /* ASRDiagnostics.swift */; };
 		A10000000000000000000036 /* DiagnosticSpeech.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* DiagnosticSpeech.wav */; };
 		A10000000000000000000038 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* DiagnosticLog.swift */; };
+		A10000000000000000000040 /* SessionLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SessionLifecycle.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		A10000000000000000000033 /* ASRDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRDiagnostics.swift; sourceTree = "<group>"; };
 		A10000000000000000000035 /* DiagnosticSpeech.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Resources/DiagnosticSpeech.wav; sourceTree = "<group>"; };
 		A10000000000000000000037 /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
+		A10000000000000000000039 /* SessionLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecycle.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +64,7 @@
 				A10000000000000000000025 /* DictationPipeline.swift */,
 				A10000000000000000000035 /* DiagnosticSpeech.wav */,
 				A10000000000000000000033 /* ASRDiagnostics.swift */,
+				A10000000000000000000039 /* SessionLifecycle.swift */,
 				A10000000000000000000037 /* DiagnosticLog.swift */,
 				A10000000000000000000031 /* ServiceDiagnostic.swift */,
 				A10000000000000000000027 /* InsertionDestination.swift */,
@@ -150,6 +153,7 @@
 				A10000000000000000000024 /* AudioChunks.swift in Sources */,
 				A10000000000000000000026 /* DictationPipeline.swift in Sources */,
 				A10000000000000000000034 /* ASRDiagnostics.swift in Sources */,
+				A10000000000000000000040 /* SessionLifecycle.swift in Sources */,
 				A10000000000000000000038 /* DiagnosticLog.swift in Sources */,
 				A10000000000000000000032 /* ServiceDiagnostic.swift in Sources */,
 				A10000000000000000000028 /* InsertionDestination.swift in Sources */,

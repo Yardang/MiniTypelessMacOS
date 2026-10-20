@@ -137,7 +137,11 @@ struct WorkflowRegression {
                     try await Task.sleep(nanoseconds: 1_000_000)
                 }
                 precondition(continuation != nil, "Mock request never reached suspended stage")
-                if sleep { app.sleepWorkflowTest() } else { app.cancelWorkflowTest() }
+                if sleep {
+                    app.sleepWorkflowTest()
+                    precondition(app.unlockedWorkflowTest)
+                    app.wakeWorkflowTest()
+                } else { app.cancelWorkflowTest() }
                 let late: [String: Any] = stage == "asr"
                     ? ["output": ["text": "迟到内容"]]
                     : ["choices": [["finish_reason": "stop", "message": ["content": "迟到整理结果"]]]]
@@ -223,8 +227,7 @@ struct WorkflowRegression {
             let failedCalls = calls
             try await Task.sleep(nanoseconds: 20_000_000)
             precondition(calls == failedCalls, "Unexpected automatic retry")
-            app.stopWorkflowTest() // Fn-start must not overwrite a recoverable take.
-            precondition(!rig.controller.isRecording)
+            // Direct controller callers must explicitly opt in to replacement.
             do { try rig.controller.start(); fatalError("Overwrote a recoverable take") }
             catch let error as CocoaError { precondition(error.code == .fileWriteFileExists) }
             let retained = try Data(contentsOf: rig.controller.url)
@@ -238,9 +241,11 @@ struct WorkflowRegression {
             precondition(exportedBytes == original)
             app.sleepWorkflowTest()
             precondition(rig.controller.completed != nil && app.recoveryTestPending)
-            app.retryWorkflowTest() // Sleep cleared the session key: must not upload.
+            app.retryWorkflowTest() // No upload while asleep.
             precondition(calls == failedCalls)
-            app.prepareWorkflowTest()
+            precondition(app.unlockedWorkflowTest)
+            app.wakeWorkflowTest() // Failed requests are not automatically replayed.
+            precondition(calls == failedCalls)
             phase = 2
             app.retryWorkflowTest(); await settle(app)
             precondition(app.recoveryTestPending && app.workflowTestState.raw == rawBeforeRetry)

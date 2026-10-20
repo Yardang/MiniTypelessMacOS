@@ -8,6 +8,7 @@ final class DiagnosticLog {
         case launch, duplicateInstance, ready, terminationRequested, cleanTermination
         case windowClosed, reopenRequested, windowReopened, sleep, wake
         case recordingRequested, recordingStarted, recordingStopped, recordingLimitReached, recordingFailed
+        case recordingPausedForSleep, wakeProcessingStarted, recordingReplaced, recordingBlockedLocked
         case microphoneDenied, processingBlockedLocked, audioInvalid, processingStarted, retryStarted
         case transcribing, emptyChunk, refining, processingSucceeded, processingFailed, processingCancelled
         case recordingDeleted, audioExported, audioExportFailed, insertionSkipped, pasteRequested
@@ -44,7 +45,7 @@ final class DiagnosticLog {
         let seconds: Double?
         let failure: Failure?
     }
-    static let build = "2026-10-19-stability-1"
+    static let build = "2026-10-20-standby-1"
     nonisolated static var defaultDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MiniTypeless", isDirectory: true)
     }
