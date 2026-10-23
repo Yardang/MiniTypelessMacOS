@@ -12,6 +12,10 @@ final class StatusHUD {
     private let label = QuietStyle.label("", size: 13)
     private let icon = NSImageView()
     private let spinner = NSProgressIndicator()
+    private let recordingContent = NSView()
+    private var statusContent: NSStackView!
+    let recordingTime = QuietStyle.label("00:00", size: 15)
+    let recordingHint = QuietStyle.label("Fn 结束", size: 11)
     let open = QuietStyle.button("查看")
     private var lastPhase: PresentationState.Phase?
     private var dismiss: DispatchWorkItem?
@@ -27,12 +31,39 @@ final class StatusHUD {
         let glass = surface.content
         icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
         spinner.style = .spinning; spinner.controlSize = .small; spinner.isDisplayedWhenStopped = false
+        recordingTime.font = .monospacedDigitSystemFont(ofSize: 15, weight: .regular)
+        recordingTime.textColor = QuietStyle.ink; recordingTime.alignment = .center
+        recordingTime.setAccessibilityLabel("录音时长")
+        recordingHint.alignment = .right
+        let dot = QuietStyle.label("●", size: 9); dot.textColor = QuietStyle.red
+        let wave = NSImageView(image: NSImage(systemSymbolName: "waveform", accessibilityDescription: "正在录音")!)
+        wave.contentTintColor = QuietStyle.secondary; wave.imageScaling = .scaleProportionallyUpOrDown
+        wave.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        wave.heightAnchor.constraint(equalToConstant: 22).isActive = true
+        let leading = QuietStyle.row([dot, wave], spacing: 12)
+        let divider = NSBox(); divider.boxType = .separator
+        recordingContent.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(recordingContent)
+        for view in [leading, divider, recordingTime, recordingHint] {
+            view.translatesAutoresizingMaskIntoConstraints = false; recordingContent.addSubview(view)
+            view.centerYAnchor.constraint(equalTo: recordingContent.centerYAnchor).isActive = true
+        }
+        NSLayoutConstraint.activate([
+            recordingContent.leadingAnchor.constraint(equalTo: glass.leadingAnchor), recordingContent.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+            recordingContent.topAnchor.constraint(equalTo: glass.topAnchor), recordingContent.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            leading.leadingAnchor.constraint(equalTo: recordingContent.leadingAnchor, constant: 22),
+            divider.leadingAnchor.constraint(equalTo: recordingContent.leadingAnchor, constant: 100), divider.widthAnchor.constraint(equalToConstant: 1), divider.heightAnchor.constraint(equalToConstant: 18),
+            recordingTime.centerXAnchor.constraint(equalTo: recordingContent.centerXAnchor), recordingTime.widthAnchor.constraint(equalToConstant: 58),
+            recordingHint.trailingAnchor.constraint(equalTo: recordingContent.trailingAnchor, constant: -22), recordingHint.widthAnchor.constraint(equalToConstant: 50)
+        ])
+        recordingContent.isHidden = true
         let row = QuietStyle.row([icon, spinner, label, QuietStyle.spacer(), open], spacing: 8)
+        statusContent = row
         row.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(row)
         NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: glass.leadingAnchor, constant: 16), row.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -16), row.centerYAnchor.constraint(equalTo: glass.centerYAnchor)])
     }
-    func update(_ state: PresentationState, sleeping: Bool) {
-        guard !sleeping, state.phase != .idle else { hide(); return }
+    func renderContent(_ state: PresentationState) {
+        recordingContent.isHidden = state.phase != .recording
+        statusContent.isHidden = state.phase == .recording
         let processing = state.phase == .transcribing || state.phase == .refining
         if processing { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
         spinner.isHidden = !processing; icon.isHidden = processing
@@ -40,11 +71,15 @@ final class StatusHUD {
         icon.contentTintColor = state.phase == .recording ? QuietStyle.red : QuietStyle.color(state.phase)
         if state.phase == .recording {
             let seconds = max(0, min(600, Int(Date().timeIntervalSince(state.startedAt ?? Date()))))
-            label.stringValue = String(format: "%02d:%02d   再按 Fn 结束", seconds / 60, seconds % 60)
+            recordingTime.stringValue = String(format: "%02d:%02d", seconds / 60, seconds % 60)
         } else {
             label.stringValue = state.phase == .pasteRequested ? "已请求插入" : state.title
         }
         open.isHidden = state.phase == .recording || processing
+    }
+    func update(_ state: PresentationState, sleeping: Bool) {
+        guard !sleeping, state.phase != .idle else { hide(); return }
+        renderContent(state)
         guard lastPhase != state.phase else { return }
         dismiss?.cancel(); lastPhase = state.phase
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
@@ -57,6 +92,7 @@ final class StatusHUD {
     }
     func notice(_ message: String) {
         dismiss?.cancel(); lastPhase = nil
+        recordingContent.isHidden = true; statusContent.isHidden = false
         spinner.stopAnimation(nil); spinner.isHidden = true; icon.isHidden = false
         icon.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: message)
         icon.contentTintColor = QuietStyle.red; label.stringValue = message; open.isHidden = false

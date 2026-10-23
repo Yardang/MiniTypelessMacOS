@@ -125,6 +125,7 @@ final class ResultWindow {
     let previousScroll: NSScrollView
     let bodyScroll: NSScrollView
     var previousExpanded = false
+    private var collapsedContentSize: NSSize?
 
     init() {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 430), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
@@ -197,11 +198,27 @@ final class ResultWindow {
         previousToggle.isEnabled = state.previous != nil
         previousTime.stringValue = state.previous.map { Self.time($0.date) } ?? "暂无"
         previousText.string = state.previous?.text ?? ""
-        previousArea.isHidden = !previousExpanded || state.previous == nil
-        previousToggle.image = NSImage(systemSymbolName: previousArea.isHidden ? "chevron.right" : "chevron.down", accessibilityDescription: nil)
-        let minHeight: CGFloat = previousArea.isHidden ? 430 : 550
+        let wasExpanded = !previousArea.isHidden
+        let isExpanded = previousExpanded && state.previous != nil
+        let frameBeforeLayout = window.frame
+        let currentSize = window.contentRect(forFrameRect: frameBeforeLayout).size
+        if isExpanded && !wasExpanded { collapsedContentSize = currentSize }
+        previousArea.isHidden = !isExpanded
+        previousToggle.image = NSImage(systemSymbolName: isExpanded ? "chevron.down" : "chevron.right", accessibilityDescription: nil)
+        let minHeight: CGFloat = isExpanded ? 550 : 430
+        var targetSize = currentSize
+        if wasExpanded && !isExpanded, let savedSize = collapsedContentSize {
+            targetSize = savedSize
+            collapsedContentSize = nil
+        }
+        targetSize.width = max(500, targetSize.width)
+        targetSize.height = max(minHeight, targetSize.height)
         window.contentMinSize = NSSize(width: 500, height: minHeight)
-        if (window.contentView?.bounds.height ?? 0) < minHeight { window.setContentSize(NSSize(width: window.contentView!.bounds.width, height: minHeight)) }
+        // Anchor the current top-left, including after the user moves an expanded window.
+        var targetFrame = window.frameRect(forContentRect: NSRect(origin: .zero, size: targetSize))
+        targetFrame.origin = NSPoint(x: frameBeforeLayout.minX, y: frameBeforeLayout.maxY - targetFrame.height)
+        if window.frame != targetFrame { window.setFrame(targetFrame, display: true) }
+
     }
     static func time(_ date: Date) -> String { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: date) }
 }

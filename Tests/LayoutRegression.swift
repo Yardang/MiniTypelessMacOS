@@ -59,6 +59,33 @@ struct LayoutRegression {
             }
         }
         }
+        // Disclosure is reversible, including custom sizes and refreshes while expanded.
+        var history = PresentationState(); history.begin(); history.complete("上一段。")
+        history.begin(); history.complete("本次。")
+        func renderHistory() {
+            ui.render(history, busy: false, recoveryAvailable: false, insertionPending: false, detailMessage: "")
+            w.contentView!.layoutSubtreeIfNeeded()
+        }
+        ui.previousExpanded = false; renderHistory()
+        for size in [NSSize(width: 580, height: 430), NSSize(width: 640, height: 480), NSSize(width: 720, height: 700)] {
+            w.setContentSize(size)
+            let original = w.frame
+            for _ in 0..<3 {
+                ui.previousExpanded = true; renderHistory()
+                require(abs(w.frame.maxY - original.maxY) < 1, "Expanding moved the window top")
+                renderHistory(); renderHistory()
+                ui.previousExpanded = false; renderHistory()
+                require(abs(w.frame.height - original.height) < 1 && abs(w.frame.width - original.width) < 1, "Collapsing did not restore original size")
+                require(abs(w.frame.maxY - original.maxY) < 1, "Collapsing moved the window top")
+            }
+        }
+        w.setContentSize(NSSize(width: 580, height: 430)); let beforeNewTake = w.frame.size
+        ui.previousExpanded = true; renderHistory()
+        w.setFrameOrigin(NSPoint(x: w.frame.minX + 40, y: w.frame.minY + 30))
+        let movedTop = w.frame.maxY, movedLeft = w.frame.minX
+        history.begin(); ui.previousExpanded = false; renderHistory()
+        require(w.frame.size == beforeNewTake, "New take did not restore collapsed size")
+        require(abs(w.frame.maxY - movedTop) < 1 && abs(w.frame.minX - movedLeft) < 1, "Collapse reverted a user move")
         // The actual menu opens settings, where normal configuration and costs remain available.
         app.showSettingsTest()
         let settings = app.settingsTestWindow!
@@ -70,6 +97,16 @@ struct LayoutRegression {
         let hud = StatusHUD()
         require(!hud.panel.canBecomeKey && !hud.panel.canBecomeMain, "HUD can steal keyboard focus")
         require(hud.panel.styleMask.contains(.nonactivatingPanel), "HUD activates app")
+        var recording = PresentationState(); recording.begin(at: Date().addingTimeInterval(-32))
+        hud.renderContent(recording); hud.panel.contentView!.layoutSubtreeIfNeeded()
+        let hudView = hud.panel.contentView!
+        let timerFrame = hud.recordingTime.convert(hud.recordingTime.bounds, to: hudView)
+        let hintFrame = hud.recordingHint.convert(hud.recordingHint.bounds, to: hudView)
+        require(abs(timerFrame.midX - hudView.bounds.midX) < 1, "Recording timer must be centered")
+        require(hintFrame.minX > timerFrame.maxX && hudView.bounds.contains(hintFrame), "Fn hint must fit on the right")
+        require(hud.recordingHint.font!.pointSize < hud.recordingTime.font!.pointSize, "Fn hint should be visually secondary")
+        recording.phase = .failed; hud.renderContent(recording)
+        require(hud.recordingTime.isHiddenOrHasHiddenAncestor && !hud.open.isHiddenOrHasHiddenAncestor, "Failure must restore status/actions")
         var preview = PresentationState(); preview.begin(); preview.complete("明天下午三点，我们讨论 Mini Typeless 的界面。\n\n希望它平时安静地待在后台，需要时能方便地找到文字。")
         preview.previous = .init(text: "上一段合成结果。", date: Date().addingTimeInterval(-240)); preview.phase = .needsCopy
         ui.previousExpanded = false; w.setContentSize(NSSize(width: 580, height: 430))
