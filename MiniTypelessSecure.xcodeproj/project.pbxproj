@@ -18,6 +18,9 @@
 		A10000000000000000000036 /* DiagnosticSpeech.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* DiagnosticSpeech.wav */; };
 		A10000000000000000000038 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* DiagnosticLog.swift */; };
 		A10000000000000000000040 /* SessionLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SessionLifecycle.swift */; };
+		A20000000000000000000002 /* PresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001; };
+		A20000000000000000000004 /* ResultWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003; };
+		A20000000000000000000006 /* StatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +37,9 @@
 		A10000000000000000000035 /* DiagnosticSpeech.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Resources/DiagnosticSpeech.wav; sourceTree = "<group>"; };
 		A10000000000000000000037 /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
 		A10000000000000000000039 /* SessionLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecycle.swift; sourceTree = "<group>"; };
+		A20000000000000000000001 /* PresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationState.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* ResultWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultWindow.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* StatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusHUD.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +65,9 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000001 /* MiniTypelessSecureApp.swift */,
+                A20000000000000000000005 /* StatusHUD.swift */,
+                A20000000000000000000003 /* ResultWindow.swift */,
+                A20000000000000000000001 /* PresentationState.swift */,
 				A10000000000000000000021 /* RecordingController.swift */,
 				A10000000000000000000023 /* AudioChunks.swift */,
 				A10000000000000000000025 /* DictationPipeline.swift */,
@@ -149,6 +158,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000002 /* MiniTypelessSecureApp.swift in Sources */,
+                A20000000000000000000006 /* StatusHUD.swift in Sources */,
+                A20000000000000000000004 /* ResultWindow.swift in Sources */,
+                A20000000000000000000002 /* PresentationState.swift in Sources */,
 				A10000000000000000000022 /* RecordingController.swift in Sources */,
 				A10000000000000000000024 /* AudioChunks.swift in Sources */,
 				A10000000000000000000026 /* DictationPipeline.swift in Sources */,

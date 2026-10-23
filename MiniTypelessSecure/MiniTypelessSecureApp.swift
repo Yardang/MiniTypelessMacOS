@@ -53,7 +53,17 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var recordingStartTarget: InsertionDestination?
     private var recordingTarget: InsertionDestination?
     private var window: NSWindow!
-    private var status: NSTextField!
+    private var status: LiveStatusField!
+    private var resultUI: ResultWindow!
+    private var presentation = PresentationState()
+    private var settingsNotice = QuietStyle.label("")
+    private var settingsWindow: NSWindow?
+    private var helpWindow: NSWindow?
+    private var developerWindow: NSWindow?
+    private var statusItem: NSStatusItem?
+    private var hud: StatusHUD?
+    private var hudTimer: Timer?
+    private var showHUD = false
     private var timingView: NSTextField!
     private var usageToggle = NSButton()
     private var usageTools = NSStackView()
@@ -137,6 +147,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     #if LAYOUT_TEST
     func prepareWorkflowTest() {
         sessionKey = "synthetic-test-key"
+        if presentation.phase == .locked { presentation.phase = .idle }
         autoInsertCheck.state = .off
     }
     func startDiagnosticTest(cases: [ASRDiagnosticCase], reportURL: URL) {
@@ -147,6 +158,11 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func retryWorkflowTest() { processRecording() }
     func deleteWorkflowTest() { deleteRecording() }
     var recoveryTestPending: Bool { recoveryPending }
+    var presentationTestState: PresentationState { presentation }
+    var resultTestUI: ResultWindow { resultUI }
+    func setPresentationTestState(_ value: PresentationState) { presentation = value; refreshPresentation() }
+    func showSettingsTest() { showSettings() }
+    var settingsTestWindow: NSWindow? { settingsWindow }
     func showRecoveryLayoutTest() { recoveryTools.isHidden = false }
     func cancelWorkflowTest() { cancelProcessing() }
     func sleepWorkflowTest() { handleSleep() }
@@ -174,6 +190,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         clearAudio()
         loadUsage()
         window = makeWindow()
+        installPresentationSurfaces()
         installHotkeyMonitors()
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
@@ -185,218 +202,166 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Constructing the window separately lets layout tests run without hotkeys,
     // microphone access, keychain reads, or cloud requests.
     func makeWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 850, height: 770), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        // This window is retained and reused by the delegate after closing.
-        // AppKit's default release-on-close is incompatible with that ARC ownership.
-        window.isReleasedWhenClosed = false
+        resultUI = ResultWindow()
+        window = resultUI.window
         window.delegate = self
-        window.title = "Mini Typeless · 睡眠待机与连续录音"
-        window.contentMinSize = NSSize(width: 720, height: 520)
-        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
-            var frame = window.frame
-            frame.size.width = min(frame.width, visibleFrame.width)
-            frame.size.height = min(frame.height, visibleFrame.height)
-            window.setFrame(frame, display: false)
-        }
-        window.center()
-        let content = NSView()
-        window.contentView = content
-        let bodyScroll = NSScrollView()
-        bodyScroll.hasVerticalScroller = true
-        bodyScroll.autohidesScrollers = true
-        bodyScroll.drawsBackground = false
-        bodyScroll.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(bodyScroll)
-        let document = FlippedView()
-        document.translatesAutoresizingMaskIntoConstraints = false
-        bodyScroll.documentView = document
-        let root = NSStackView()
-        root.orientation = .vertical
-        root.alignment = .leading
-        root.spacing = 12
-        root.translatesAutoresizingMaskIntoConstraints = false
-        document.addSubview(root)
-        // Keep the latest result and recovery actions visible even when the body grows.
-        let footer = NSStackView()
-        footer.orientation = .vertical
-        footer.alignment = .leading
-        footer.spacing = 8
-        footer.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(footer)
-        NSLayoutConstraint.activate([
-            bodyScroll.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            bodyScroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            bodyScroll.topAnchor.constraint(equalTo: content.topAnchor),
-            bodyScroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -12),
-            document.widthAnchor.constraint(equalTo: bodyScroll.contentView.widthAnchor),
-            root.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 26),
-            root.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -26),
-            root.topAnchor.constraint(equalTo: document.topAnchor, constant: 26),
-            root.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -16),
-            footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 26),
-            footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -26),
-            footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16)
-        ])
-        let title = NSTextField(labelWithString: "Mini Typeless · 睡眠待机与连续录音")
-        title.font = .boldSystemFont(ofSize: 19)
-        root.addArrangedSubview(title)
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "先用 Touch ID 解锁本次运行。左下角 Fn／地球键按一次开始录音，再按一次自动转写、整理并尝试插入；不会自动发送聊天。旧密钥和旧程序仍保留。"))
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "录音流程（默认核对输入框；兼容模式按你的选择粘贴；不会自动发送聊天）"))
-        _ = addButton("允许 Fn 快捷键", #selector(checkHotkeyPermission), to: root)
-        _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
-        keySetupToggle = NSButton(title: "首次使用：保存自己的百炼 API Key", target: self, action: #selector(toggleKeySetup))
-        root.addArrangedSubview(keySetupToggle)
-        keySetupTools.orientation = .vertical
-        keySetupTools.alignment = .leading
-        keySetupTools.spacing = 6
-        keyInput.placeholderString = "粘贴你自己的百炼北京区 API Key"
-        keyInput.widthAnchor.constraint(equalToConstant: 500).isActive = true
-        keySetupTools.addArrangedSubview(keyInput)
-        _ = addButton("存入本机 Touch ID 钥匙串", #selector(saveOwnKey), to: keySetupTools)
-        keySetupTools.isHidden = true
-        root.addArrangedSubview(keySetupTools)
-        #if DEBUG
-        let evaluationButtons = NSStackView()
-        evaluationButtons.orientation = .horizontal
-        evaluationButtons.spacing = 8
-        evaluationButton = NSButton(title: "运行 30 条文字整理测试", target: self, action: #selector(runPromptEvaluation))
-        evaluationCancelButton = NSButton(title: "取消文字测试", target: self, action: #selector(cancelPromptEvaluation))
-        evaluationCancelButton.isEnabled = false
-        evaluationButtons.addArrangedSubview(evaluationButton)
-        evaluationButtons.addArrangedSubview(evaluationCancelButton)
-        root.addArrangedSubview(evaluationButtons)
-        buttons.append(addButton("检测静音转写（上传合成音频）", #selector(runASRDiagnostics), to: root))
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "诊断会依次上传短语音、2 分钟静音和 4 分钟带间隔的合成语音，共 3 次转写请求；计入用量，不录音、不整理、不插入。可用“取消当前处理”停止。"))
-        let diagnosticScroll = NSScrollView()
-        diagnosticScroll.hasVerticalScroller = true
-        diagnosticScroll.borderType = .bezelBorder
-        diagnosticScroll.translatesAutoresizingMaskIntoConstraints = false
-        diagnosticScroll.heightAnchor.constraint(equalToConstant: 110).isActive = true
-        diagnosticView.isEditable = false
-        diagnosticView.font = .systemFont(ofSize: 13)
-        configureResultView(diagnosticView)
-        diagnosticView.string = "静音诊断尚未运行。诊断报告只含测试项目、耗时和脱敏后的错误信息。"
-        diagnosticScroll.documentView = diagnosticView
-        root.addArrangedSubview(diagnosticScroll)
-        diagnosticScroll.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
-        #endif
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "Fn／地球键单独按下并松开：开始录音；再按一次停止并上传处理。每次启动解锁一次；睡眠后仍可使用。新录音成功开始会替换待重试录音。"))
-        let audioButtons = NSStackView()
-        audioButtons.orientation = .horizontal
-        audioButtons.spacing = 8
-        recordButton = NSButton(title: "开始录音", target: self, action: #selector(toggleRecording))
-        processButton = NSButton(title: "转写并整理（会上传本次录音）", target: self, action: #selector(processRecording))
-        processButton.isEnabled = false
-        audioButtons.addArrangedSubview(recordButton)
-        audioButtons.addArrangedSubview(processButton)
-        cancelButton = NSButton(title: "取消当前处理", target: self, action: #selector(cancelProcessing))
-        cancelButton.isEnabled = false
-        audioButtons.addArrangedSubview(cancelButton)
-        deleteButton = NSButton(title: "删除录音", target: self, action: #selector(deleteRecording))
-        audioButtons.addArrangedSubview(deleteButton)
-        root.addArrangedSubview(audioButtons)
-        status = NSTextField(wrappingLabelWithString: "准备就绪。先用 Touch ID 解锁本次运行，再将光标放到目标输入框。")
-        status.font = .systemFont(ofSize: 15)
-        status.maximumNumberOfLines = 5
-        root.addArrangedSubview(status)
+        status = LiveStatusField(wrappingLabelWithString: "准备就绪。先用 Touch ID 解锁本次运行。")
+        status.font = .systemFont(ofSize: 13)
+        status.changed = { [weak self] in self?.refreshPresentation() }
         timingView = NSTextField(wrappingLabelWithString: "本次运行耗时：尚无完成的录音。")
-        timingView.maximumNumberOfLines = 4
-        root.addArrangedSubview(timingView)
-        usageToggle = NSButton(title: "展开用量与费用预估", target: self, action: #selector(toggleUsage))
-        root.addArrangedSubview(usageToggle)
-        usageTools.orientation = .vertical
-        usageTools.alignment = .leading
-        usageTools.spacing = 6
-        usageView = NSTextField(wrappingLabelWithString: "")
-        usageTools.addArrangedSubview(usageView)
-        usageTools.addArrangedSubview(NSTextField(wrappingLabelWithString: "只存本机的日期和用量数字；不保存录音或文字。按北京区公开原价估算，未扣免费额度；以百炼账单为准。"))
-        usageTools.isHidden = true
-        root.addArrangedSubview(usageTools)
-        refreshUsageView()
-        let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
-        scroll.borderType = .bezelBorder
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.heightAnchor.constraint(equalToConstant: 155).isActive = true
-        resultView.isEditable = false
-        resultView.font = .systemFont(ofSize: 16)
-        configureResultView(resultView)
-        scroll.documentView = resultView
-        root.addArrangedSubview(scroll)
-        footer.addArrangedSubview(NSTextField(labelWithString: "最新成功结果（仅在内存中保留）"))
-        let latestScroll = NSScrollView()
-        latestScroll.hasVerticalScroller = true
-        latestScroll.borderType = .bezelBorder
-        latestScroll.translatesAutoresizingMaskIntoConstraints = false
-        latestScroll.heightAnchor.constraint(equalToConstant: 75).isActive = true
-        latestView.isEditable = false
-        latestView.font = .systemFont(ofSize: 16)
-        configureResultView(latestView)
-        latestScroll.documentView = latestView
-        footer.addArrangedSubview(latestScroll)
-        let resultButtons = NSStackView()
-        resultButtons.orientation = .horizontal
-        resultButtons.spacing = 8
-        copyButton = NSButton(title: "复制最新结果", target: self, action: #selector(copyLatestResult))
-        clearButton = NSButton(title: "清空最新结果", target: self, action: #selector(clearLatestResult))
-        insertButton = NSButton(title: "尝试插入最新结果", target: self, action: #selector(insertLatestResult))
-        copyButton.isEnabled = false
-        clearButton.isEnabled = false
-        insertButton.isEnabled = false
-        resultButtons.addArrangedSubview(copyButton)
-        resultButtons.addArrangedSubview(clearButton)
-        resultButtons.addArrangedSubview(insertButton)
-        compatibilityInsertButton = NSButton(title: "兼容粘贴（2 秒）", target: self, action: #selector(compatibilityInsertLatestResult))
-        compatibilityInsertButton.isEnabled = false
-        compatibilityInsertButton.toolTip = "点击后 2 秒内切换并点击目标输入框；按你的选择直接请求粘贴，不验证输入框，不发送消息。"
-        resultButtons.addArrangedSubview(compatibilityInsertButton)
-        footer.addArrangedSubview(resultButtons)
-        recoveryTools.orientation = .horizontal
-        recoveryTools.spacing = 8
-        retryButton = NSButton(title: "重试转写（重新上传）", target: self, action: #selector(processRecording))
-        exportAudioButton = NSButton(title: "另存待重试录音…", target: self, action: #selector(exportRecoveryAudio))
-        discardRecoveryButton = NSButton(title: "删除待重试录音", target: self, action: #selector(deleteRecording))
-        for button in [retryButton, exportAudioButton, discardRecoveryButton] { recoveryTools.addArrangedSubview(button) }
-        recoveryTools.isHidden = true
-        footer.addArrangedSubview(recoveryTools)
-        autoInsertCheck = NSButton(checkboxWithTitle: "整理成功后尝试插入录音时选择的应用", target: self, action: #selector(autoInsertSettingChanged))
+        copyButton = resultUI.copy; bind(copyButton, #selector(copyCurrentResult))
+        insertButton = resultUI.insert; bind(insertButton, #selector(insertLatestResult))
+        retryButton = resultUI.retry; bind(retryButton, #selector(processRecording))
+        exportAudioButton = resultUI.export; bind(exportAudioButton, #selector(exportRecoveryAudio))
+        discardRecoveryButton = resultUI.discard; bind(discardRecoveryButton, #selector(deleteRecording))
+        recoveryTools = resultUI.recovery
+        cancelButton = resultUI.cancel; bind(cancelButton, #selector(cancelProcessing))
+        recordButton = resultUI.record; bind(recordButton, #selector(toggleRecording))
+        bind(resultUI.unlock, #selector(unlockSessionKey))
+        bind(resultUI.close, #selector(hideResultWindow))
+        bind(resultUI.settings, #selector(showSettings))
+        bind(resultUI.more, #selector(showResultMenu))
+        bind(resultUI.previousToggle, #selector(togglePreviousResult))
+        bind(resultUI.previousCopy, #selector(copyPreviousResult))
+        autoInsertCheck = NSButton(checkboxWithTitle: "整理成功后尝试插入原输入框", target: self, action: #selector(autoInsertSettingChanged))
         autoInsertCheck.state = .on
-        footer.addArrangedSubview(autoInsertCheck)
-        compatibilityPasteCheck = NSButton(checkboxWithTitle: "兼容模式：Codex／ChatGPT 无焦点信息时仍粘贴（需自行选中输入框）", target: nil, action: nil)
+        compatibilityPasteCheck = NSButton(checkboxWithTitle: "兼容模式：无焦点信息时仍粘贴", target: nil, action: nil)
         compatibilityPasteCheck.state = .off
-        footer.addArrangedSubview(compatibilityPasteCheck)
-        insertionStatus.font = .systemFont(ofSize: 12)
-        insertionStatus.maximumNumberOfLines = 3
-        insertionStatus.setContentCompressionResistancePriority(.required, for: .vertical)
-        footer.addArrangedSubview(insertionStatus)
-        legacyToggle = NSButton(title: "展开已完成的密钥迁移检查", target: self, action: #selector(toggleLegacyTools))
-        root.addArrangedSubview(legacyToggle)
-        legacyTools.orientation = .vertical
-        legacyTools.alignment = .leading
-        legacyTools.spacing = 8
-        buttons.append(addButton("1. 用假数据验证此程序", #selector(testDummy), to: legacyTools))
-        buttons.append(addButton("2. 复制旧密钥到 Touch ID 项目", #selector(migrate), to: legacyTools))
-        buttons.append(addButton("3. 用新密钥调用一次百炼", #selector(testAPI), to: legacyTools))
-        legacyTools.isHidden = true
-        root.addArrangedSubview(legacyTools)
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "任何一步失败时，旧密钥和现有程序仍可用。只报告状态文字或系统返回码，不发送密钥。"))
-        NSLayoutConstraint.activate([
-            usageView.widthAnchor.constraint(equalTo: root.widthAnchor),
-            scroll.widthAnchor.constraint(equalTo: root.widthAnchor),
-            latestScroll.widthAnchor.constraint(equalTo: footer.widthAnchor),
-            insertionStatus.widthAnchor.constraint(equalTo: footer.widthAnchor)
-        ])
-        _ = addButton("打开本地诊断日志", #selector(openDiagnosticLogs), to: root)
-        root.addArrangedSubview(NSTextField(wrappingLabelWithString: "诊断日志仅保存在本机，记录运行阶段和错误码，不记录录音、文字或密钥。"))
-        // Wrapping labels must follow the available width, including after a resize.
-        for view in root.arrangedSubviews {
-            view.setContentCompressionResistancePriority(.required, for: .vertical)
-            if view is NSTextField || view is NSStackView {
-                view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
-            }
-        }
-        self.window = window
+        compatibilityInsertButton = NSButton(title: "兼容粘贴（2 秒）", target: self, action: #selector(compatibilityInsertLatestResult))
+        copyButton.isEnabled = false
+        refreshPresentation()
         return window
+    }
+
+    private func bind(_ button: NSButton, _ action: Selector) { button.target = self; button.action = action }
+
+    private func refreshPresentation() {
+        guard let resultUI else { return }
+        settingsNotice.stringValue = status?.stringValue ?? ""
+        resultUI.render(presentation, busy: busy, recoveryAvailable: recoveryPending && recording.completed != nil && !lifecycle.isSleeping,
+                        insertionPending: insertionPending, detailMessage: status?.stringValue ?? "")
+        if showHUD { hud?.update(presentation, sleeping: lifecycle.isSleeping) }
+        statusItem?.button?.toolTip = "Mini Typeless · " + presentation.title
+        statusItem?.button?.contentTintColor = QuietStyle.color(presentation.phase)
+    }
+
+    @objc private func showResultWindow() { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+    @objc private func hideResultWindow() { window.close() }
+    @objc private func togglePreviousResult() { resultUI.previousExpanded.toggle(); refreshPresentation() }
+    @objc private func copyCurrentResult() { copyText(presentation.copyText, message: presentation.result == nil ? "原文已复制" : "文字已复制") }
+    @objc private func copyPreviousResult() { copyText(presentation.previous?.text, message: "上次成功文字已复制") }
+    private func copyText(_ text: String?, message: String) {
+        guard let text else { return }
+        let board = NSPasteboard.general; board.clearContents()
+        resultUI.feedback.stringValue = board.setString(text, forType: .string) ? message : "复制失败，请重新尝试"
+        resultUI.feedback.isHidden = false
+    }
+
+    @objc private func showResultMenu() {
+        let menu = NSMenu()
+        for (title, action) in [("本次详情与原始转写", #selector(showHelp)), ("设置与用量", #selector(showSettings)), ("兼容粘贴（2 秒）", #selector(compatibilityInsertLatestResult)), ("清空保存的文字", #selector(clearLatestResult))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self
+            if action == #selector(compatibilityInsertLatestResult) { item.isEnabled = presentation.result != nil && !busy && !recording.isRecording && !insertionPending }
+            menu.addItem(item)
+        }
+        menu.autoenablesItems = false
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: resultUI.more.bounds.maxY), in: resultUI.more)
+    }
+
+    private func toolWindow(_ title: String) -> (NSWindow, NSStackView) {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 650), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        w.title = title; w.isReleasedWhenClosed = false; w.contentMinSize = NSSize(width: 570, height: 450)
+        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; w.contentView = scroll
+        let document = FlippedView(); document.translatesAutoresizingMaskIntoConstraints = false; scroll.documentView = document
+        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 14
+        stack.translatesAutoresizingMaskIntoConstraints = false; document.addSubview(stack)
+        NSLayoutConstraint.activate([document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor), stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24), stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24)])
+        w.center(); return (w, stack)
+    }
+    private func fitTools(_ stack: NSStackView) {
+        for v in stack.arrangedSubviews { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+    }
+    @objc private func showSettings() {
+        if settingsWindow == nil {
+            let (w, root) = toolWindow("设置与用量"); settingsWindow = w
+            root.addArrangedSubview(QuietStyle.label("Fn 开始，再按 Fn 结束。关闭结果窗口后，快捷键仍然可用。", size: 15))
+            _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
+            _ = addButton("检查快捷键与辅助功能权限", #selector(checkHotkeyPermission), to: root)
+            root.addArrangedSubview(settingsNotice)
+            root.addArrangedSubview(autoInsertCheck); root.addArrangedSubview(compatibilityPasteCheck)
+            root.addArrangedSubview(QuietStyle.label("兼容模式默认关闭，仅本次运行有效。仅在指定应用不提供焦点时尝试粘贴，需要自行选中输入框。不会自动发送消息。"))
+            keySetupToggle = NSButton(title: "首次使用：保存自己的百炼 API Key", target: self, action: #selector(toggleKeySetup)); root.addArrangedSubview(keySetupToggle)
+            keySetupTools.orientation = .vertical; keySetupTools.alignment = .leading; keySetupTools.spacing = 8
+            keyInput.placeholderString = "百炼 API Key"; keySetupTools.addArrangedSubview(keyInput)
+            keyInput.widthAnchor.constraint(equalTo: keySetupTools.widthAnchor).isActive = true
+            _ = addButton("存入本机 Touch ID 钥匙串", #selector(saveOwnKey), to: keySetupTools)
+            keySetupTools.isHidden = true; root.addArrangedSubview(keySetupTools)
+            root.addArrangedSubview(QuietStyle.label("用量与费用预估", size: 17))
+            usageView = QuietStyle.label(""); root.addArrangedSubview(usageView); refreshUsageView()
+            root.addArrangedSubview(QuietStyle.label("只保留日期与用量数字，不保存文字。估算未扣免费额度，以百炼账单为准。", size: 12))
+            _ = addButton("诊断与帮助", #selector(showHelp), to: root)
+            _ = addButton("退出 Mini Typeless", #selector(quitApp), to: root)
+            fitTools(root)
+        }
+        settingsWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc private func showHelp() {
+        if helpWindow == nil {
+            let (w, root) = toolWindow("诊断与帮助"); helpWindow = w
+            root.addArrangedSubview(QuietStyle.label("本次详情", size: 17)); root.addArrangedSubview(status)
+            root.addArrangedSubview(insertionStatus); root.addArrangedSubview(timingView)
+            root.addArrangedSubview(QuietStyle.label("原始转写与处理详情", size: 17))
+            let raw = QuietStyle.textScroll(resultView); raw.heightAnchor.constraint(equalToConstant: 220).isActive = true; root.addArrangedSubview(raw)
+            _ = addButton("打开本地诊断日志", #selector(openDiagnosticLogs), to: root)
+            root.addArrangedSubview(QuietStyle.label("日志只记录阶段和错误码，不记录音频、文字或密钥。文字只在本次运行内保留。关闭窗口不退出；退出会清除未另存录音和内存中的文字。", size: 12))
+            root.addArrangedSubview(QuietStyle.label("UI 预览版 · 2026-10-23", size: 12))
+            #if DEBUG
+            _ = addButton("开发工具…", #selector(showDeveloperTools), to: root)
+            #endif
+            fitTools(root)
+        }
+        helpWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    #if DEBUG
+    @objc private func showDeveloperTools() {
+        if developerWindow == nil {
+            let (w, root) = toolWindow("开发工具（会产生云端用量）"); developerWindow = w
+            evaluationButton = addButton("运行 30 条文字整理测试", #selector(runPromptEvaluation), to: root)
+            evaluationCancelButton = addButton("取消文字测试", #selector(cancelPromptEvaluation), to: root)
+            buttons.append(addButton("检测静音转写（上传合成音频）", #selector(runASRDiagnostics), to: root))
+            _ = addButton("取消当前处理", #selector(cancelProcessing), to: root)
+            let report = QuietStyle.textScroll(diagnosticView); report.heightAnchor.constraint(equalToConstant: 180).isActive = true; root.addArrangedSubview(report)
+            root.addArrangedSubview(QuietStyle.label("历史密钥迁移检查（正常使用无需执行）"))
+            buttons.append(addButton("1. 用假数据验证此程序", #selector(testDummy), to: root))
+            buttons.append(addButton("2. 复制旧密钥到 Touch ID 项目", #selector(migrate), to: root))
+            buttons.append(addButton("3. 用新密钥调用一次百炼", #selector(testAPI), to: root))
+            fitTools(root); setBusy(busy)
+        }
+        developerWindow?.makeKeyAndOrderFront(nil)
+    }
+    #endif
+    @objc private func quitApp() { NSApp.terminate(nil) }
+
+    private func installPresentationSurfaces() {
+        hud = StatusHUD(); bind(hud!.open, #selector(showResultWindow))
+        hudTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { if let self, self.showHUD, self.presentation.phase == .recording { self.hud?.update(self.presentation, sleeping: self.lifecycle.isSleeping) } }
+        }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem?.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Mini Typeless")
+        let menu = NSMenu()
+        for (title, action) in [("查看结果", #selector(showResultWindow)), ("设置与用量", #selector(showSettings)), ("诊断与帮助", #selector(showHelp)), ("退出 Mini Typeless", #selector(quitApp))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
+        }
+        statusItem?.menu = menu
+        let main = NSMenu(); let appItem = NSMenuItem(); main.addItem(appItem)
+        let appMenu = NSMenu(); appMenu.addItem(NSMenuItem(title: "退出 Mini Typeless", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")); appItem.submenu = appMenu
+        let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""); main.addItem(editItem)
+        let edit = NSMenu(title: "编辑"); editItem.submenu = edit
+        edit.addItem(NSMenuItem(title: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        edit.addItem(NSMenuItem(title: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        edit.addItem(NSMenuItem(title: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        NSApp.mainMenu = main
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -446,6 +411,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         evaluationTask?.cancel()
         evaluationTask = nil
         #endif
+        hudTimer?.invalidate(); hudTimer = nil; hud?.hide()
         sessionKey = nil
         insertionGeneration += 1
         insertionPending = false
@@ -488,6 +454,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updateContentLayout() {
+        settingsWindow?.contentView?.layoutSubtreeIfNeeded()
         window.contentView?.layoutSubtreeIfNeeded()
     }
 
@@ -605,6 +572,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         latestSuccess = nil
+        presentation.result = nil; presentation.previous = nil; presentation.raw = nil
+        if !busy && !recording.isRecording { presentation.phase = sessionKey == nil ? .locked : .idle }
         latestView.string = ""
         copyButton.isEnabled = false
         clearButton.isEnabled = false
@@ -616,10 +585,12 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setInsertionButtonsEnabled(_ enabled: Bool) {
         let available = enabled && !busy && !recording.isRecording && !micPermissionPending
         insertButton.isEnabled = available
-        compatibilityInsertButton.isEnabled = available
+        compatibilityInsertButton.isEnabled = available && presentation.result != nil
+        refreshPresentation()
     }
 
     private func insertionFallback(_ message: String) {
+        presentation.phase = .needsCopy
         diagnostics.record(.insertionSkipped)
         insertionPending = false
         setInsertionButtonsEnabled(latestSuccess != nil)
@@ -632,7 +603,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func insertLatestResult() {
-        guard latestSuccess != nil, !insertionPending, !busy, !recording.isRecording, !micPermissionPending else { return }
+        guard presentation.result != nil, latestSuccess != nil, !insertionPending, !busy, !recording.isRecording, !micPermissionPending else { return }
         insertionGeneration += 1
         let token = insertionGeneration
         insertionPending = true
@@ -688,7 +659,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func compatibilityInsertLatestResult() {
-        guard latestSuccess != nil, !insertionPending, !busy, !recording.isRecording, !micPermissionPending else { return }
+        guard presentation.result != nil, latestSuccess != nil, !insertionPending, !busy, !recording.isRecording, !micPermissionPending else { return }
         guard AXIsProcessTrusted() else { insertionFallback("辅助功能权限未允许，未粘贴。"); return }
         insertionGeneration += 1
         let token = insertionGeneration
@@ -840,6 +811,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         down.postToPid(pid)
         up.postToPid(pid)
         diagnostics.record(.pasteRequested)
+        presentation.phase = .pasteRequested
         // The AX lookup is finished. Keep the button disabled until clipboard restoration,
         // but do not let the lookup watchdog overwrite this outcome.
         insertionPending = false
@@ -939,12 +911,13 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         evaluationButton.isEnabled = !value
         #endif
         buttons.forEach { $0.isEnabled = !value }
-        recordButton.isEnabled = !value && !lifecycle.isSleeping
+        recordButton.isEnabled = !value && !lifecycle.isSleeping && !micPermissionPending
         processButton.isEnabled = !value && !lifecycle.isSleeping && !recording.isRecording && recording.completed != nil
         cancelButton.isEnabled = value && activeRequestID != nil
         deleteButton.isEnabled = !value
         refreshRecoveryControls()
         setInsertionButtonsEnabled(latestSuccess != nil)
+        refreshPresentation()
     }
 
     private func finishPipeline() {
@@ -972,6 +945,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         #endif
         recoveryPending = recording.completed != nil
+        presentation.phase = .cancelled
         setBusy(false)
         if let raw = currentRaw {
             resultView.string = "原始转写：\n\(raw)\n\n整理结果：\n未整理（已取消）"
@@ -1022,6 +996,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.recordButton.title = "开始录音"
             self.processButton.isEnabled = true
             if self.lifecycle.isSleeping {
+                self.presentation.phase = .waitingWake
                 self.lifecycle.deferUntilWake(audio.url)
                 self.recoveryPending = true
                 self.setBusy(false)
@@ -1035,6 +1010,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         recording.onFailure = { [weak self] in
             guard let self else { return }
+            self.presentation.phase = .failed
             self.diagnostics.record(.recordingFailed)
             self.recordButton.title = "开始录音"
             self.buttons.forEach { $0.isEnabled = true }
@@ -1054,11 +1030,13 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         buttons.forEach { $0.isEnabled = true }
         setBusy(false)
         setInsertionButtonsEnabled(latestSuccess != nil)
+        presentation.phase = sessionKey == nil ? .locked : .idle
         status.stringValue = "本次临时录音已删除；已另存的文件不受影响。"
     }
 
     @objc private func toggleRecording() {
         diagnostics.record(.recordingRequested)
+        showHUD = true
         guard !busy, !insertionPending, !micPermissionPending, !lifecycle.isSleeping else { return }
         if recording.isRecording {
             recording.stop()
@@ -1083,12 +1061,20 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.micPermissionPending = false
                 guard allowed else {
                     self.diagnostics.record(.microphoneDenied)
+                    self.resultUI.feedback.isHidden = false
+                    self.resultUI.feedback.stringValue = "麦克风权限未获允许；本次没有开始新录音。"
                     self.showInsertionStatus("麦克风权限未获允许，请到系统设置中检查。上一段待重试录音仍保留。")
+                    self.hud?.notice("麦克风权限未获允许")
                     return
                 }
                 do {
                     let replaced = self.recording.completed != nil
                     try self.recording.start(replacingCompleted: true)
+                    self.presentation.begin()
+                    self.resultUI.feedback.isHidden = true
+                    self.resultUI.previousExpanded = false
+                    self.currentRaw = nil
+                    self.resultView.string = ""
                     self.lifecycle.invalidateDeferredAudio()
                     self.recoveryPending = false
                     self.refreshRecoveryControls()
@@ -1102,7 +1088,10 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 } catch {
                     self.refreshRecoveryControls()
                     self.diagnostics.record(.recordingFailed, failure: .classify(error))
+                    self.resultUI.feedback.isHidden = false
+                    self.resultUI.feedback.stringValue = "录音未能启动，上一段内容仍保留。"
                     self.showInsertionStatus("录音启动失败，请检查麦克风；若有上一段待重试录音，仍为你保留。")
+                    self.hud?.notice("录音未能启动")
                 }
             }
         }
@@ -1140,6 +1129,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         sessionKey = key
+        if presentation.phase == .locked { presentation.phase = .idle }
         status.stringValue = "本次运行已解锁。之后录音处理复用内存中的密钥；退出程序后清除；Mac 睡眠不需要重新解锁。"
     }
 
@@ -1228,6 +1218,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let chunks: [AudioChunk]
         do { chunks = try AudioChunks.split(Data(contentsOf: audio.url)) }
         catch {
+            presentation.phase = .failed
             diagnostics.record(.audioInvalid, failure: .classify(error))
             status.stringValue = "录音为空、损坏或超过 10 分钟；未上传。副本保留，可另存检查，或主动删除后重新录制。"
             return
@@ -1235,6 +1226,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Retain the original until success so a failed request can be retried
         // or exported. No automatic retry of these non-idempotent POST requests.
         let previousRaw = currentRaw
+        presentation.phase = .transcribing
         let requestID = UUID()
         let target = recordingTarget
         let started = Date()
@@ -1263,8 +1255,13 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         self.recordUsage(object, asr: asr, audioSeconds: seconds)
                     case .raw(let raw):
                         if !wasRetry || self.currentRaw == nil { self.currentRaw = raw }
+                        self.presentation.raw = raw
+                        self.presentation.rawComplete = false
+                        self.refreshPresentation()
                         self.resultView.string = "已转写内容：\n\(raw)\n\n正在继续处理……"
                     case .refining:
+                        self.presentation.rawComplete = true
+                        self.presentation.phase = .refining
                         self.diagnostics.record(.refining, operation: requestID)
                         self.status.stringValue = "转写完成，正在整理全文……"
                     }
@@ -1276,6 +1273,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.currentRaw = result.raw
                 self.resultView.string = "原始转写：\n\(result.raw)\n\n整理结果：\n\(result.refined)"
                 self.latestSuccess = result.refined
+                self.presentation.complete(result.refined)
                 self.recordOutputCharacters(result.refined.count)
                 self.latestView.string = result.refined
                 self.copyButton.isEnabled = true
@@ -1295,6 +1293,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.diagnostics.record(.processingFailed, operation: requestID, failure: .classify(error))
                 if wasRetry, let previousRaw { self.currentRaw = previousRaw }
                 self.finishPipeline()
+                self.presentation.phase = .failed
+                if self.presentation.raw == nil { self.presentation.raw = self.currentRaw }
                 let message = DictationFailure.describe(error)
                     + "；本次未插入。录音保留到本次运行结束，可重试或另存；下一次成功开始录音或退出会删除临时副本。不会自动重试，手动重试可能重复计费。"
                 if let raw = self.currentRaw {

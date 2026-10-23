@@ -16,7 +16,9 @@ xcrun swiftc -D DEBUG -D LAYOUT_TEST \
 /tmp/minitypeless-layout-tests/layout-regression
 ```
 
-The test constructs the actual AppKit window offscreen with synthetic multiline text. It checks 24 combinations: three window sizes (including the 720 × 520 minimum) and all eight disclosure states. Copy, insert, and compatibility-paste controls must stay inside the window; expanded content must scroll; result text must have a usable wrapping width. No microphone, keychain, hotkey monitor, cloud call, or clipboard operation is invoked.
+The test constructs the actual frosted AppKit result window offscreen with synthetic multiline text. It checks 12 combinations: three sizes (500 × 430 minimum, 580 × 550, 900 × 760), previous-result disclosure on/off, and ready/failed content. Copy/insert or recovery actions must fit; long text must wrap and scroll. It also checks settings access, absence of developer controls in the daily window, distinct partial/full-raw labels, honest paste-request wording, and a nonactivating HUD. No microphone, keychain, hotkey monitor, cloud call, or clipboard operation is invoked. Offscreen checks cannot prove live focus behavior or behind-window blur.
+
+For CHG-20261023-01, only targeted manual checks are pending: one ordinary Fn dictation with the main window closed to check HUD focus, copy and reopen; inspect the window over light/dark backgrounds and expand the previous result. The 2026-10-21 ChatGPT/Claude/Obsidian sleep and network-replacement results remain valid historical evidence. The longer manual lists below describe earlier builds, not a request to repeat them all.
 
 Run the focus regression separately:
 
@@ -108,3 +110,7 @@ Exercises 25 actual window close/reopen cycles and verifies lifecycle events, cl
 `SleepRecoveryRegression.swift` maps to AC-SLP-01/02/03/04, AC-REC-01/02/03 and AC-SEC-01. Tests retain the unlocked session across sleep, first-upload deferral, duplicate notifications, deadline/delegate races, replacement after successful start, failures before replacement, stale permission callbacks, deletion/exit invalidation and failed wake upload without automatic retry. WorkflowRegression covers AC-SLP-05 in both network stages. Earlier assertions requiring sleep re-unlock and blocking Fn for a retryable take were deliberately superseded; their old expectations are not current requirements.
 
 Real system sleep, microphone delivery immediately before sleep and target-app focus after wake remain a short manual acceptance check; fake notifications do not prove hardware behavior.
+
+## UI state integration (CHG-20261023-01)
+
+SleepRecoveryRegression now additionally drives real Fn start/stop through success, next-take ASR failure, recording-start failures, refinement failure and explicit retry. It checks that the current body/copy never exposes the previous result as current, raw text is explicitly labelled, prior success remains accessible, and retry ends ready without automatic insertion. LayoutRegression covers geometry and PresentationState labels. Seven offline suites and Debug/Release builds passed; actual clipboard delivery, material rendering and target-app focus require the targeted live checks in the change record.

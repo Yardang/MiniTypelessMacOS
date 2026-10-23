@@ -1,71 +1,69 @@
 import AppKit
 
-// Compile alongside the app with -D DEBUG -D LAYOUT_TEST. These checks construct
-// an offscreen window only; no keychain, microphone, hotkeys, or network are used.
 @main
 @MainActor
 struct LayoutRegression {
-    static func descendants(_ view: NSView) -> [NSView] {
-        [view] + view.subviews.flatMap(descendants)
-    }
-
-    static func require(_ condition: Bool, _ message: String) {
-        guard condition else { fatalError(message) }
-    }
-
-    static func main() {
+    static func require(_ ok: Bool, _ message: String) { precondition(ok, message) }
+    static func descendants(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(descendants) }
+    static func main() throws {
         _ = NSApplication.shared
-        let delegate = SecureProbe()
-        let window = delegate.makeWindow()
-        delegate.showRecoveryLayoutTest()
-        let content = window.contentView!
-        let views = descendants(content)
-        let buttons = views.compactMap { $0 as? NSButton }
-        let copy = buttons.first { $0.title == "复制最新结果" }!
-        let insert = buttons.first { $0.title == "尝试插入最新结果" }!
-        let compatibility = buttons.first { $0.title == "兼容粘贴（2 秒）" }!
-        let recovery = ["重试转写（重新上传）", "另存待重试录音…", "删除待重试录音"].map { title in buttons.first { $0.title == title }! }
-        let toggles = ["展开用量与费用预估", "首次使用：保存自己的百炼 API Key", "展开已完成的密钥迁移检查"]
-            .map { title in buttons.first { $0.title == title }! }
-        let labels = views.compactMap { $0 as? NSTextField }
-        labels.first { $0.stringValue.hasPrefix("本次运行耗时：") }!.stringValue =
-            "本次运行耗时：\n第 1 段：录音 20.6 秒｜ASR 2.0 秒｜整理 0.9 秒｜处理合计 2.9 秒\n第 2 段：录音 20.9 秒｜ASR 3.0 秒｜整理 0.9 秒｜处理合计 4.0 秒\n第 3 段：录音 9.3 秒｜ASR 1.5 秒｜整理 0.8 秒｜处理合计 2.3 秒"
-        labels.first { $0.stringValue.hasPrefix("插入状态：") }!.stringValue =
-            "插入状态：转写片段 3/3（120 秒）；云端说明：" + String(repeating: "详细错误信息。", count: 80)
-        let sample = String(repeating: "这是一段用于验证换行和滚动的合成文字。", count: 20)
-        for view in views.compactMap({ $0 as? NSTextView }) { view.string = sample }
-        let bodyScroll = content.subviews.compactMap { $0 as? NSScrollView }.first!
+        NSApp.setActivationPolicy(.prohibited)
+        let app = SecureProbe()
+        let w = app.makeWindow(), ui = app.resultTestUI
+        w.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+        var semantics = PresentationState(); semantics.begin(); semantics.raw = "部分原文"; semantics.phase = .failed
+        require(semantics.copyText == "部分原文" && semantics.copyTitle == "复制原文" && semantics.title.contains("可能不完整"), "Partial text semantics")
+        semantics.rawComplete = true
+        require(semantics.title.contains("整理未完成"), "Complete raw text semantics")
+        semantics.complete("完整结果"); semantics.phase = .pasteRequested
+        require(semantics.title.contains("请求") && !semantics.title.contains("插入成功"), "Do not claim receiver acceptance")
+        var state = PresentationState()
+        state.begin(); state.complete("上次成功的合成文字。")
+        state.begin(); state.raw = String(repeating: "合成文字用于检查长文本换行。", count: 300)
+        state.phase = .failed
         var checks = 0
-        for size in [NSSize(width: 720, height: 520), NSSize(width: 850, height: 770), NSSize(width: 1100, height: 900)] {
-            window.setContentSize(size)
-            // Gray-code order exercises every disclosure combination with one toggle at a time.
-            var previousMask = 0
-            for index in 0..<8 {
-                let mask = index ^ (index >> 1)
-                let changed = mask ^ previousMask
-                for bit in 0..<3 where changed & (1 << bit) != 0 { toggles[bit].performClick(nil) }
-                previousMask = mask
-                content.layoutSubtreeIfNeeded()
-                for button in [copy, insert, compatibility] + recovery {
-                    let frame = button.convert(button.bounds, to: content)
-                    require(content.bounds.contains(frame), "Recovery button clipped at \(size), disclosure \(mask): \(frame)")
-                    require(frame.width > 60 && frame.height > 15, "Recovery button collapsed")
+        for size in [NSSize(width: 500, height: 430), NSSize(width: 580, height: 550), NSSize(width: 900, height: 760)] {
+            for prior in [false, true] {
+                for success in [false, true] {
+                    var current = state
+                    if success { current.complete(state.raw!) }
+                    ui.previousExpanded = prior
+                    w.setContentSize(size)
+                    ui.render(current, busy: false, recoveryAvailable: !success, insertionPending: false, detailMessage: String(repeating: "网络连接已中断。", count: 100))
+                    w.contentView!.layoutSubtreeIfNeeded()
+                    let content = w.contentView!
+                    for b in success ? [ui.copy, ui.insert, ui.more] : [ui.copy, ui.retry, ui.export, ui.discard] {
+                        let frame = b.convert(b.bounds, to: content)
+                        require(!b.isHidden && content.bounds.contains(frame), "Action clipped: \(b.title), \(size), prior=\(prior): \(frame)")
+                        require(frame.height >= 28 && frame.width > 18, "Action collapsed: \(b.title) \(frame)")
+                    }
+                    require(ui.bodyScroll.frame.height >= 85, "Body collapsed")
+                    require(ui.text.bounds.width > 400, "Body has no reading width")
+                    require(ui.text.textContainer!.containerSize.width <= ui.text.bounds.width + 1, "Body does not wrap")
+                    require(ui.text.frame.height > ui.bodyScroll.contentView.bounds.height, "Long text must scroll")
+                    require(ui.previousArea.isHidden == !prior, "Previous disclosure mismatch")
+                    checks += 1
                 }
-                require(bodyScroll.frame.height > 120, "Scrollable body collapsed")
-                let document = bodyScroll.documentView!
-                require(abs(document.frame.width - bodyScroll.contentView.bounds.width) < 1, "Body requires horizontal scrolling")
-                if mask == 7 {
-                    require(document.frame.height > bodyScroll.contentView.bounds.height, "Expanded content must be scrollable")
-                }
-                for text in views.compactMap({ $0 as? NSTextView }) {
-                    require(text.bounds.width > 500, "Result text has no usable width")
-                    require(text.textContainer!.containerSize.width <= text.bounds.width + 1, "Result text does not wrap")
-                }
-                checks += 1
             }
-            // Gray-code's last mask is 4; return to the collapsed baseline.
-            toggles[2].performClick(nil)
         }
-        print("PASS: \(checks) window/disclosure layouts; copy and insert remain visible, body scrolls, result text wraps.")
+        // The actual menu opens settings, where normal configuration and costs remain available.
+        app.showSettingsTest()
+        let settings = app.settingsTestWindow!
+        settings.orderOut(nil); settings.contentView!.layoutSubtreeIfNeeded()
+        let titles = descendants(w.contentView!).compactMap { ($0 as? NSButton)?.title }
+        require(!titles.contains(where: { $0.contains("30 条") || $0.contains("迁移") || $0.contains("API Key") }), "Developer/setup controls leaked into result window")
+        let hud = StatusHUD()
+        require(!hud.panel.canBecomeKey && !hud.panel.canBecomeMain, "HUD can steal keyboard focus")
+        require(hud.panel.styleMask.contains(.nonactivatingPanel), "HUD activates app")
+        var preview = PresentationState(); preview.begin(); preview.complete("明天下午三点，我们讨论 Mini Typeless 的界面。\n\n希望它平时安静地待在后台，需要时能方便地找到文字。")
+        preview.previous = .init(text: "上一段合成结果。", date: Date().addingTimeInterval(-240)); preview.phase = .needsCopy
+        ui.previousExpanded = false; w.setContentSize(NSSize(width: 580, height: 430))
+        ui.render(preview, busy: false, recoveryAvailable: false, insertionPending: false, detailMessage: "目标输入框不可用。")
+        w.contentView!.layoutSubtreeIfNeeded()
+        if let path = ProcessInfo.processInfo.environment["MINITYPELESS_PREVIEW_PATH"], let bitmap = w.contentView!.bitmapImageRepForCachingDisplay(in: w.contentView!.bounds) {
+            w.contentView!.cacheDisplay(in: w.contentView!.bounds, to: bitmap)
+            try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
+        }
+        print("PASS: \(checks) real window layouts, long text scrolling, previous disclosure, settings access, no daily developer controls, nonactivating HUD.")
     }
 }
