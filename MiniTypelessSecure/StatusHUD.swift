@@ -13,7 +13,7 @@ final class StatusHUD {
     private let icon = NSImageView()
     private let spinner = NSProgressIndicator()
     private let recordingContent = NSView()
-    private var statusContent: NSStackView!
+    private let statusContent = NSView()
     let recordingTime = QuietStyle.label("00:00", size: 15)
     let recordingHint = QuietStyle.label("Fn 结束", size: 11)
     let open = QuietStyle.button("查看")
@@ -56,10 +56,21 @@ final class StatusHUD {
             recordingHint.trailingAnchor.constraint(equalTo: recordingContent.trailingAnchor, constant: -22), recordingHint.widthAnchor.constraint(equalToConstant: 50)
         ])
         recordingContent.isHidden = true
-        let row = QuietStyle.row([icon, spinner, label, QuietStyle.spacer(), open], spacing: 8)
-        statusContent = row
-        row.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(row)
-        NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo: glass.leadingAnchor, constant: 16), row.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -16), row.centerYAnchor.constraint(equalTo: glass.centerYAnchor)])
+        label.alignment = .center
+        label.maximumNumberOfLines = 1; label.lineBreakMode = .byTruncatingTail
+        statusContent.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(statusContent)
+        for view in [icon, spinner, label, open] {
+            view.translatesAutoresizingMaskIntoConstraints = false; statusContent.addSubview(view)
+            view.centerYAnchor.constraint(equalTo: statusContent.centerYAnchor).isActive = true
+        }
+        NSLayoutConstraint.activate([
+            statusContent.leadingAnchor.constraint(equalTo: glass.leadingAnchor), statusContent.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+            statusContent.topAnchor.constraint(equalTo: glass.topAnchor), statusContent.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
+            icon.leadingAnchor.constraint(equalTo: statusContent.leadingAnchor, constant: 22),
+            spinner.centerXAnchor.constraint(equalTo: icon.centerXAnchor),
+            label.centerXAnchor.constraint(equalTo: statusContent.centerXAnchor), label.widthAnchor.constraint(equalToConstant: 188),
+            open.trailingAnchor.constraint(equalTo: statusContent.trailingAnchor, constant: -16), open.widthAnchor.constraint(equalToConstant: 34)
+        ])
     }
     func renderContent(_ state: PresentationState) {
         recordingContent.isHidden = state.phase != .recording
@@ -75,6 +86,7 @@ final class StatusHUD {
         } else {
             label.stringValue = state.phase == .pasteRequested ? "已请求插入" : state.title
         }
+        label.toolTip = label.stringValue
         open.isHidden = state.phase == .recording || processing
     }
     func update(_ state: PresentationState, sleeping: Bool) {
@@ -95,7 +107,7 @@ final class StatusHUD {
         recordingContent.isHidden = true; statusContent.isHidden = false
         spinner.stopAnimation(nil); spinner.isHidden = true; icon.isHidden = false
         icon.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: message)
-        icon.contentTintColor = QuietStyle.red; label.stringValue = message; open.isHidden = false
+        icon.contentTintColor = QuietStyle.red; label.stringValue = message; label.toolTip = message; open.isHidden = false
         if let frame = NSScreen.main?.visibleFrame { panel.setFrameOrigin(NSPoint(x: frame.midX - 150, y: frame.minY + 28)) }
         panel.orderFrontRegardless()
     }

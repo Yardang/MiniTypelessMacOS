@@ -118,3 +118,5 @@ SleepRecoveryRegression now additionally drives real Fn start/stop through succe
 CHG-20261023-02 additionally checks default System appearance, preference round-trips in an isolated UserDefaults suite, all three settings choices, and layout across the three appearances. Synthetic backdrop screen-composition checks cover light/dark readability; prior recording/network tests are inherited.
 
 CHG-20261023-03 adds reversible disclosure checks at three initial sizes, repeated renders while expanded, moving the expanded window, and automatic collapse on a new take. It also checks a centered HUD timer, a smaller right-side Fn hint, and return to the normal status/actions on failure. The disclosure regression fails on the previous code and passes after the fix.
+
+CHG-20261023-04 checks nine non-recording HUD states: text is centered on the same axis as the recording timer, stays inside the capsule, and does not overlap the visible View action.

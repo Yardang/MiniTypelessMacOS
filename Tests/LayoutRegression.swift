@@ -107,6 +107,19 @@ struct LayoutRegression {
         require(hud.recordingHint.font!.pointSize < hud.recordingTime.font!.pointSize, "Fn hint should be visually secondary")
         recording.phase = .failed; hud.renderContent(recording)
         require(hud.recordingTime.isHiddenOrHasHiddenAncestor && !hud.open.isHiddenOrHasHiddenAncestor, "Failure must restore status/actions")
+        for phase: PresentationState.Phase in [.transcribing, .refining, .ready, .failed, .cancelled, .needsCopy, .pasteRequested, .locked, .waitingWake] {
+            var status = PresentationState(); status.phase = phase
+            hud.renderContent(status); hudView.layoutSubtreeIfNeeded()
+            let expected = phase == .pasteRequested ? "已请求插入" : status.title
+            let statusLabel = descendants(hudView).compactMap { $0 as? NSTextField }.first { $0.stringValue == expected }!
+            let frame = statusLabel.convert(statusLabel.bounds, to: hudView)
+            require(statusLabel.alignment == .center && abs(frame.midX - timerFrame.midX) < 1, "Status must share timer center: \(phase)")
+            require(hudView.bounds.contains(frame), "Status clipped")
+            if !hud.open.isHidden {
+                let buttonFrame = hud.open.convert(hud.open.bounds, to: hudView)
+                require(buttonFrame.minX > frame.maxX, "View action overlaps status")
+            }
+        }
         var preview = PresentationState(); preview.begin(); preview.complete("明天下午三点，我们讨论 Mini Typeless 的界面。\n\n希望它平时安静地待在后台，需要时能方便地找到文字。")
         preview.previous = .init(text: "上一段合成结果。", date: Date().addingTimeInterval(-240)); preview.phase = .needsCopy
         ui.previousExpanded = false; w.setContentSize(NSSize(width: 580, height: 430))
