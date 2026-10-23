@@ -22,7 +22,7 @@
 		A20000000000000000000004 /* ResultWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003; };
 		A20000000000000000000006 /* StatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005; };
 		A20000000000000000000008 /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007; };
-		A20000000000000000000010 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009; };
+		A20000000000000000000010 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,7 +43,7 @@
 		A20000000000000000000003 /* ResultWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultWindow.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* StatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusHUD.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* SettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindow.swift; sourceTree = "<group>"; };
-		A20000000000000000000009 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Resources/AppIcon.icns; sourceTree = "<group>"; };
+		A20000000000000000000009 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,7 +77,7 @@
 				A10000000000000000000023 /* AudioChunks.swift */,
 				A10000000000000000000025 /* DictationPipeline.swift */,
 				A10000000000000000000035 /* DiagnosticSpeech.wav */,
-                A20000000000000000000009 /* AppIcon.icns */,
+                A20000000000000000000009 /* AppIcon.icon */,
 				A10000000000000000000033 /* ASRDiagnostics.swift */,
 				A10000000000000000000039 /* SessionLifecycle.swift */,
 				A10000000000000000000037 /* DiagnosticLog.swift */,
@@ -153,7 +153,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000036 /* DiagnosticSpeech.wav in Resources */,
-                A20000000000000000000010 /* AppIcon.icns in Resources */,
+                A20000000000000000000010 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -213,6 +213,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = VVW72TN96U;
 				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = MiniTypelessSecure/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Mini Typeless Secure";
 				INFOPLIST_KEY_LSMinimumSystemVersion = 15.0;
@@ -237,6 +238,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = VVW72TN96U;
 				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = MiniTypelessSecure/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Mini Typeless Secure";
 				INFOPLIST_KEY_LSMinimumSystemVersion = 15.0;

@@ -89,3 +89,5 @@ The in-app usage and cost panel stores daily counts locally, starting with this 
 This is an experimental build. Text refinement can occasionally change meaning, and insertion can fail depending on the target app or system permissions. Review the output before use. Debug builds include a 30-case synthetic text evaluation that calls the refinement model without recording or inserting. Results and limitations are in [evaluation/README.md](evaluation/README.md).
 
 程序坞图标（2026-10-23）：UI Preview 6 采用选定的深色玻璃 A 图标和三个不对称波峰，图标固定，不随界面主题切换。保留 Preview 5 作为回退；打包与签名已验证，Dock 显示待用户切换后确认。[记录](docs/changes/CHG-20261023-06.md)。
+
+图标适配修正（2026-10-23）：Preview 6 实机出现系统额外浅色套框；Preview 7 改用原生 Icon Composer 打包，安装后的系统图标服务已确认外框消失。保留 A 图稿和旧版，用户方便时切换后复看 Dock 即可。[记录](docs/changes/CHG-20261023-07.md)。

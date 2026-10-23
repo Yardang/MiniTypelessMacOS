@@ -4,7 +4,9 @@
 
 Built-in image_gen tool; edit reference was the earlier two-column A/B concept board. Original selected generation filename: `exec-5afc029f-7652-4246-a595-753c199cc20d.png`. This project copy is the packaging source, not a link to a temporary external file.
 
-Rebuild with `bash scripts/build-icon.sh` on macOS. sips only resizes the approved raster; iconutil packages the representations into `MiniTypelessSecure/Resources/AppIcon.icns`. Source has transparent exterior; glass texture is baked artwork, not live desktop blur.
+The approved raster is copied unchanged into `MiniTypelessSecure/AppIcon.icon/Assets/Approved.png`. Xcode compiles this Icon Composer document into `Assets.car` for macOS 26+ and a fallback `AppIcon.icns` for older systems. Build with the normal Xcode scheme; do not replace the native catalog with the former hand-packed ICNS. The native layer scale (1.03) and vertical translation (6 pt) account for the source canvas margin and align its glass tile to the system mask. Additional layer glass/specular/shadow effects are disabled to preserve the approved baked artwork. A matching dark fill covers any subpixel seam at the mask edge.
+
+Source has transparent exterior; glass texture is baked artwork, not live desktop blur. The former ICNS-only delivery (Preview 6) triggered the extra macOS 26 plate; see CHG-20261023-07. System-rendered before/after images are saved under docs/assets, not simulated Dock mockups.
 
 ## Generation prompt (verbatim)
 
