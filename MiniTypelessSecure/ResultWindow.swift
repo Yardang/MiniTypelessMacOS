@@ -51,6 +51,31 @@ enum QuietStyle {
         ])
         return (glass, content)
     }
+    static func windowHeader(title: String, close: NSButton, trailing: NSView? = nil) -> NSView {
+        let header = NSView()
+        header.heightAnchor.constraint(equalToConstant: 35).isActive = true
+        let logo = NSImageView(image: NSImage(systemSymbolName: "waveform", accessibilityDescription: "Mini Typeless")!)
+        logo.setAccessibilityIdentifier("minitypeless-waveform")
+        logo.contentTintColor = blue; logo.widthAnchor.constraint(equalToConstant: 22).isActive = true
+        let name = label(title, size: 14); name.font = .systemFont(ofSize: 14, weight: .medium); name.textColor = ink
+        let identity = row([logo, name], spacing: 10)
+        for view in [close, identity] + (trailing.map { [$0] } ?? []) {
+            view.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(view)
+            view.centerYAnchor.constraint(equalTo: header.centerYAnchor).isActive = true
+        }
+        NSLayoutConstraint.activate([
+            close.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            identity.centerXAnchor.constraint(equalTo: header.centerXAnchor),
+            identity.leadingAnchor.constraint(greaterThanOrEqualTo: close.trailingAnchor, constant: 16)
+        ])
+        if let trailing {
+            trailing.trailingAnchor.constraint(equalTo: header.trailingAnchor).isActive = true
+            identity.trailingAnchor.constraint(lessThanOrEqualTo: trailing.leadingAnchor, constant: -16).isActive = true
+        } else {
+            identity.trailingAnchor.constraint(lessThanOrEqualTo: header.trailingAnchor, constant: -46).isActive = true
+        }
+        return header
+    }
     static func label(_ text: String, size: CGFloat = 13) -> NSTextField {
         let v = NSTextField(wrappingLabelWithString: text)
         v.font = .systemFont(ofSize: size)
@@ -145,13 +170,10 @@ final class ResultWindow {
             root.leadingAnchor.constraint(equalTo: glass.leadingAnchor, constant: 28), root.trailingAnchor.constraint(equalTo: glass.trailingAnchor, constant: -28),
             root.topAnchor.constraint(equalTo: glass.topAnchor, constant: 20), root.bottomAnchor.constraint(equalTo: glass.bottomAnchor, constant: -18)
         ])
-        let logo = NSImageView(image: NSImage(systemSymbolName: "waveform", accessibilityDescription: "Mini Typeless")!)
-        logo.contentTintColor = QuietStyle.blue; logo.widthAnchor.constraint(equalToConstant: 22).isActive = true
-        let name = QuietStyle.label("Mini Typeless", size: 14); name.font = .systemFont(ofSize: 14, weight: .medium); name.textColor = QuietStyle.ink
         settings.setAccessibilityLabel("设置、用量与帮助"); settings.toolTip = "设置、用量与帮助"
         more.setAccessibilityLabel("更多操作"); more.toolTip = "更多操作"
         close.setAccessibilityLabel("隐藏窗口"); close.toolTip = "隐藏窗口，Fn 仍可使用"
-        let header = QuietStyle.row([logo, name, QuietStyle.spacer(), settings, close])
+        let header = QuietStyle.windowHeader(title: "Mini Typeless", close: close, trailing: settings)
         root.addArrangedSubview(header)
         let statusRow = QuietStyle.row([dot, status, QuietStyle.spacer(), timestamp], spacing: 8)
         timestamp.setContentCompressionResistancePriority(.required, for: .horizontal)

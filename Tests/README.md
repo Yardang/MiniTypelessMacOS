@@ -120,3 +120,5 @@ CHG-20261023-02 additionally checks default System appearance, preference round-
 CHG-20261023-03 adds reversible disclosure checks at three initial sizes, repeated renders while expanded, moving the expanded window, and automatic collapse on a new take. It also checks a centered HUD timer, a smaller right-side Fn hint, and return to the normal status/actions on failure. The disclosure regression fails on the previous code and passes after the fix.
 
 CHG-20261023-04 checks nine non-recording HUD states: text is centered on the same axis as the recording timer, stays inside the capsule, and does not overlap the visible View action.
+
+CHG-20261023-05 adds settings checks for three appearances and two sizes, scrollable expanded details, fixed help/quit actions, usage summary/detail consistency using synthetic counts, empty-key validation without keychain access, isolation from dictation feedback, retained settings state after close/reopen, and left-side close controls with the waveform identity preserved. The seven offline suites passed; the final footer-only adjustment was checked again with LayoutRegression.

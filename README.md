@@ -16,17 +16,19 @@ UI 迭代（2026-10-23）：**开发完成，实机待验**。采用浅色磨砂
 
 提示位置小修（2026-10-23）：UI Preview 4 将转写、整理、成功和失败等胶囊状态小字居中，与录音时长同轴；录音布局与主窗口不变。[记录](docs/changes/CHG-20261023-04.md)。
 
+设置页统一（2026-10-23）：UI Preview 5 将 × 移到主窗左侧，保留声波图标与名称；设置页采用同一玻璃样式，按日常设置、权限与密钥、用量分组。费用先显示今日/本月摘要，明细可展开；帮助和退出固定在底部。[记录](docs/changes/CHG-20261023-05.md)。
+
 Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按下并松开左下角 **Fn／地球键** 开始录音，再按一次停止；程序随后用阿里云百炼进行语音转写和轻量文字整理，并尝试把结果插入当前输入框。它不会自动发送聊天消息。
 
 ### 首次使用
 
 1. 用 Xcode 打开 `MiniTypelessSecure.xcodeproj`。在目标的 **Signing & Capabilities** 中选择你自己的 Team，并启用自动管理签名。若改动 Bundle Identifier，请同步修改 `MiniTypelessSecure/MiniTypelessSecure.entitlements` 中 `keychain-access-groups` 的应用标识，保持两者一致。
-2. 在阿里云百炼创建**你自己的北京区 API Key**。运行程序，点击齿轮进入“设置与用量”，展开“首次使用：保存自己的百炼 API Key”，粘贴并点击“存入本机 Touch ID 钥匙串”。如果本机已有密钥，程序不会覆盖它。
+2. 在阿里云百炼创建**你自己的北京区 API Key**。运行程序，点击齿轮进入“设置与用量”，在“权限与密钥”中点击百炼 API Key 右侧“设置”，粘贴并点击“存入本机钥匙串”。如果本机已有密钥，程序不会覆盖它。
 3. 点击“用 Touch ID 解锁本次运行”。按界面提示授予麦克风、辅助功能和输入监控权限，然后把光标放到目标输入框，使用 Fn／地球键开始和停止录音。若 macOS 同时切换输入法或打开表情面板，可在“系统设置 → 键盘”中把“按 Fn／地球键”设为“无操作”。
 
 每次重新启动程序需要解锁一次；同次运行跨 Mac 睡眠仍保持解锁。本次运行的后续请求复用内存中的密钥。录音成功处理后删除临时副本；失败或取消时保留已结束录音，供本次运行内手动重试或另存。主动删除或正常退出会清除临时副本，已另存的文件不受影响。识别文字和最新结果只保存在当前窗口的内存里。默认仅在支持的应用中确认输入框焦点后尝试自动插入；失败时可复制结果或主动使用兼容粘贴。最长录音时间为 **10 分钟**；再次按 Fn、点击停止或达到上限都会自动转写、整理并尝试插入。长录音在内存中按最多 4 分钟分段转写，合并后整理并只尝试插入一次。
 
-点击结果窗口右上角 × 只关闭窗口，程序和 Fn 快捷键会继续运行；点击 Dock 图标或菜单栏波形图标可重新打开。要真正退出，可用应用菜单 Command-Q、菜单栏“退出 Mini Typeless”或 Dock 退出。退出后内存中的密钥会清除，下次启动需要再次使用 Touch ID。
+点击结果窗口左上角 × 只关闭窗口，程序和 Fn 快捷键会继续运行；点击 Dock 图标或菜单栏波形图标可重新打开。要真正退出，可用应用菜单 Command-Q、菜单栏“退出 Mini Typeless”或 Dock 退出。退出后内存中的密钥会清除，下次启动需要再次使用 Touch ID。
 
 程序在停止录音时记住接收应用（若当时在 Mini Typeless，则沿用开始录音时的外部应用）。处理期间回到 Mini Typeless 查看进度，完成后会返回原应用检查输入框；切换到第三个应用则停止自动插入并提示原因。若在同一应用内切换对话，文字会尝试进入处理完成时的当前输入框，请确认所选位置。
 
@@ -61,12 +63,12 @@ Appearance: choose System (default), Light, or Dark in Settings. The choice pers
 ### Getting started
 
 1. Open `MiniTypelessSecure.xcodeproj` in Xcode. Under the target's **Signing & Capabilities**, select your own Team and enable automatic signing. If you change the Bundle Identifier, update the app identifier in `keychain-access-groups` in `MiniTypelessSecure/MiniTypelessSecure.entitlements` to match.
-2. Create **your own Beijing-region Bailian API key**. Run the app, open Settings using the gear, expand “首次使用：保存自己的百炼 API Key” (First use: save your own Bailian API key), paste the key, and click “存入本机 Touch ID 钥匙串” (Save to local Touch ID keychain). An existing key is never overwritten by this action.
+2. Create **your own Beijing-region Bailian API key**. Run the app, open Settings using the gear, choose “设置” beside Bailian API Key under Permissions and Key, paste the key, and click “存入本机钥匙串” (Save to local keychain). An existing key is never overwritten by this action.
 3. Click “用 Touch ID 解锁本次运行” (Unlock this session with Touch ID). Grant the requested microphone, Accessibility, and Input Monitoring permissions. Focus the target input field, then use Fn/Globe to start and stop recording. If macOS also switches input sources or opens the emoji panel, set “Press Fn/Globe key to” to “Do Nothing” in System Settings → Keyboard.
 
 Unlock once after each app launch; the in-memory session remains unlocked across Mac sleep until the app exits. Temporary audio is deleted after successful processing. Failed or canceled completed recordings remain available within the current run for manual retry or WAV export; explicit deletion or normal exit clears the temporary copy. Transcripts and results remain in window memory. By default, insertion requires confirmed input focus in a supported app; otherwise copy the result or explicitly choose compatibility paste. Recordings are limited to **10 minutes**. Fn-stop, the stop button, and the time limit all start transcription and refinement automatically. Audio is split in memory into chunks of at most four minutes, transcribed in order, then refined and inserted once.
 
-The top-right × hides the result window while the app and Fn shortcut continue running. Reopen it using the Dock or waveform menu-bar item. Quit through Command-Q, the menu-bar Quit item, or the Dock. Quitting clears the in-memory key, so the next launch requires Touch ID again.
+The top-left × hides the result window while the app and Fn shortcut continue running. Reopen it using the Dock or waveform menu-bar item. Quit through Command-Q, the menu-bar Quit item, or the Dock. Quitting clears the in-memory key, so the next launch requires Touch ID again.
 
 Starting a new recording replaces any completed retryable take only after the new microphone recording starts successfully. A failed start preserves the old take. Sleep ends an active recording and defers its first upload until wake; interrupted in-flight requests are not automatically retried. See the [PRD](docs/PRD.md).
 

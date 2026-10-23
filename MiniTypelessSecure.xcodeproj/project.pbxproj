@@ -21,6 +21,7 @@
 		A20000000000000000000002 /* PresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001; };
 		A20000000000000000000004 /* ResultWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003; };
 		A20000000000000000000006 /* StatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005; };
+		A20000000000000000000008 /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 		A20000000000000000000001 /* PresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationState.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* ResultWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultWindow.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* StatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusHUD.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* SettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000001 /* MiniTypelessSecureApp.swift */,
+                A20000000000000000000007 /* SettingsWindow.swift */,
                 A20000000000000000000005 /* StatusHUD.swift */,
                 A20000000000000000000003 /* ResultWindow.swift */,
                 A20000000000000000000001 /* PresentationState.swift */,
@@ -159,6 +162,7 @@
 			files = (
 				A10000000000000000000002 /* MiniTypelessSecureApp.swift in Sources */,
                 A20000000000000000000006 /* StatusHUD.swift in Sources */,
+                A20000000000000000000008 /* SettingsWindow.swift in Sources */,
                 A20000000000000000000004 /* ResultWindow.swift in Sources */,
                 A20000000000000000000002 /* PresentationState.swift in Sources */,
 				A10000000000000000000022 /* RecordingController.swift in Sources */,

@@ -58,6 +58,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var presentation = PresentationState()
     private var settingsNotice = QuietStyle.label("")
     private var settingsWindow: NSWindow?
+    private var settingsUI: SettingsWindow?
     private var helpWindow: NSWindow?
     private var developerWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -163,6 +164,15 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func setPresentationTestState(_ value: PresentationState) { presentation = value; refreshPresentation() }
     func showSettingsTest() { showSettings() }
     var settingsTestWindow: NSWindow? { settingsWindow }
+    var settingsTestUI: SettingsWindow? { settingsUI }
+    func setUsageTest() {
+        usageByDay = [dayKey(): UsageDay(asrInput: 1_000_000, textOutput: 1_000_000, audioSeconds: 120)]
+        refreshUsageView()
+    }
+    func toggleUsageTest() { toggleUsage() }
+    func toggleKeySetupTest() { toggleKeySetup() }
+    func emptyKeyFeedbackTest() { keyInput.stringValue = ""; saveOwnKey() }
+    func setStatusTest(_ value: String) { status.stringValue = value }
     func showRecoveryLayoutTest() { recoveryTools.isHidden = false }
     func cancelWorkflowTest() { cancelProcessing() }
     func sleepWorkflowTest() { handleSleep() }
@@ -237,7 +247,6 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func refreshPresentation() {
         guard let resultUI else { return }
-        settingsNotice.stringValue = status?.stringValue ?? ""
         resultUI.render(presentation, busy: busy, recoveryAvailable: recoveryPending && recording.completed != nil && !lifecycle.isSleeping,
                         insertionPending: insertionPending, detailMessage: status?.stringValue ?? "")
         if showHUD { hud?.update(presentation, sleeping: lifecycle.isSleeping) }
@@ -293,31 +302,16 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     @objc private func showSettings() {
         if settingsWindow == nil {
-            let (w, root) = toolWindow("设置与用量"); settingsWindow = w
-            root.addArrangedSubview(QuietStyle.label("Fn 开始，再按 Fn 结束。关闭结果窗口后，快捷键仍然可用。", size: 15))
-            let themePicker = NSPopUpButton()
-            themePicker.addItems(withTitles: InterfaceTheme.allCases.map(\.title))
-            themePicker.selectItem(at: InterfaceTheme.allCases.firstIndex(of: InterfaceTheme.load())!)
-            themePicker.target = self; themePicker.action = #selector(changeInterfaceTheme(_:))
-            themePicker.setAccessibilityLabel("界面外观")
-            root.addArrangedSubview(QuietStyle.row([QuietStyle.label("外观"), themePicker, QuietStyle.spacer()]))
-            _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
-            _ = addButton("检查快捷键与辅助功能权限", #selector(checkHotkeyPermission), to: root)
-            root.addArrangedSubview(settingsNotice)
-            root.addArrangedSubview(autoInsertCheck); root.addArrangedSubview(compatibilityPasteCheck)
-            root.addArrangedSubview(QuietStyle.label("兼容模式默认关闭，仅本次运行有效。仅在指定应用不提供焦点时尝试粘贴，需要自行选中输入框。不会自动发送消息。"))
-            keySetupToggle = NSButton(title: "首次使用：保存自己的百炼 API Key", target: self, action: #selector(toggleKeySetup)); root.addArrangedSubview(keySetupToggle)
-            keySetupTools.orientation = .vertical; keySetupTools.alignment = .leading; keySetupTools.spacing = 8
-            keyInput.placeholderString = "百炼 API Key"; keySetupTools.addArrangedSubview(keyInput)
-            keyInput.widthAnchor.constraint(equalTo: keySetupTools.widthAnchor).isActive = true
-            _ = addButton("存入本机 Touch ID 钥匙串", #selector(saveOwnKey), to: keySetupTools)
-            keySetupTools.isHidden = true; root.addArrangedSubview(keySetupTools)
-            root.addArrangedSubview(QuietStyle.label("用量与费用预估", size: 17))
-            usageView = QuietStyle.label(""); root.addArrangedSubview(usageView); refreshUsageView()
-            root.addArrangedSubview(QuietStyle.label("只保留日期与用量数字，不保存文字。估算未扣免费额度，以百炼账单为准。", size: 12))
-            _ = addButton("诊断与帮助", #selector(showHelp), to: root)
-            _ = addButton("退出 Mini Typeless", #selector(quitApp), to: root)
-            fitTools(root)
+            let ui = SettingsWindow(autoInsert: autoInsertCheck, compatibility: compatibilityPasteCheck, keyInput: keyInput)
+            settingsUI = ui; settingsWindow = ui.window
+            ui.themePicker.target = self; ui.themePicker.action = #selector(changeInterfaceTheme(_:))
+            bind(ui.unlock, #selector(unlockSessionKey)); bind(ui.permissions, #selector(checkHotkeyPermission))
+            keySetupToggle = ui.keyToggle; keySetupTools = ui.keyTools
+            bind(keySetupToggle, #selector(toggleKeySetup)); bind(ui.saveKey, #selector(saveOwnKey))
+            settingsNotice = ui.notice
+            usageToggle = ui.usageToggle; usageTools = ui.usageTools; usageView = ui.usageDetails
+            bind(usageToggle, #selector(toggleUsage)); refreshUsageView()
+            bind(ui.help, #selector(showHelp)); bind(ui.quit, #selector(quitApp))
         }
         settingsWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
@@ -465,7 +459,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func toggleKeySetup() {
         let expanded = keySetupTools.isHidden
         keySetupTools.isHidden = !expanded
-        keySetupToggle.title = expanded ? "收起 API Key 设置" : "首次使用：保存自己的百炼 API Key"
+        keySetupToggle.title = expanded ? "收起" : "设置"
+        keySetupToggle.image = NSImage(systemSymbolName: expanded ? "chevron.up" : "chevron.down", accessibilityDescription: nil)
         updateContentLayout()
     }
 
@@ -477,7 +472,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func toggleUsage() {
         let expanded = usageTools.isHidden
         usageTools.isHidden = !expanded
-        usageToggle.title = expanded ? "收起用量与费用预估" : "展开用量与费用预估"
+        usageToggle.title = expanded ? "收起明细" : "查看明细"
+        usageToggle.image = NSImage(systemSymbolName: expanded ? "chevron.up" : "chevron.down", accessibilityDescription: nil)
         if expanded { refreshUsageView() }
         updateContentLayout()
     }
@@ -545,9 +541,18 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let costLine = "本月原价估算：ASR ¥\(String(format: "%.4f", month.asrCost)) + 整理 ¥\(String(format: "%.4f", month.textCost)) = ¥\(String(format: "%.4f", month.asrCost + month.textCost))；按已记录日均推算整月约 ¥\(String(format: "%.2f", projected))"
         let noteLine = "统计自本版启用后开始；\(month.callsWithoutTokens) 次成功请求未返回完整 Token，未计入价格。"
         usageView.stringValue = [todayLine, monthLine, costLine, noteLine].joined(separator: "\n")
+        settingsUI?.todaySummary.stringValue = String(format: "%.1f 分钟 · ¥%.4f", today.audioSeconds / 60, today.asrCost + today.textCost)
+        settingsUI?.monthSummary.stringValue = String(format: "%.1f 分钟 · ¥%.4f", month.audioSeconds / 60, month.asrCost + month.textCost)
+    }
+
+    private func showSettingsFeedback() {
+        settingsNotice.stringValue = status.stringValue
+        settingsNotice.isHidden = settingsNotice.stringValue.isEmpty
+        updateContentLayout()
     }
 
     @objc private func saveOwnKey() {
+        defer { showSettingsFeedback() }
         let key = keyInput.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             status.stringValue = "请先粘贴你自己的百炼 API Key。"
@@ -566,6 +571,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func autoInsertSettingChanged() {
+        defer { showSettingsFeedback() }
         status.stringValue = autoInsertCheck.state == .on
             ? "本次运行已启用整理后尝试插入。停止录音时请选择目标输入框；处理期间可回到本窗口查看进度。"
             : "本次运行已关闭整理后尝试插入。结果仍可手动复制或插入。"
@@ -864,6 +870,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func checkHotkeyPermission() {
+        defer { showSettingsFeedback() }
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
         status.stringValue = trusted
@@ -1132,6 +1139,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func unlockSessionKey() {
         guard !busy else { return }
+        defer { showSettingsFeedback() }
         if sessionKey != nil {
             status.stringValue = "本次运行已经解锁，无需再次验证 Touch ID。"
             return
