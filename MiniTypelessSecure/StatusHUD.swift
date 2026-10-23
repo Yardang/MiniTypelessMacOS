@@ -21,10 +21,10 @@ final class StatusHUD {
         panel.level = .floating; panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
-        panel.isReleasedWhenClosed = false; panel.appearance = NSAppearance(named: .aqua)
-        let glass = NSVisualEffectView(); glass.material = .popover; glass.blendingMode = .behindWindow; glass.state = .active
-        glass.wantsLayer = true; glass.layer?.cornerRadius = 24; glass.layer?.cornerCurve = .continuous; glass.layer?.masksToBounds = true
-        panel.contentView = glass
+        panel.isReleasedWhenClosed = false; panel.appearance = InterfaceTheme.load().appearance
+        let surface = QuietStyle.glassSurface(radius: 24)
+        panel.contentView = surface.surface
+        let glass = surface.content
         icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
         spinner.style = .spinning; spinner.controlSize = .small; spinner.isDisplayedWhenStopped = false
         let row = QuietStyle.row([icon, spinner, label, QuietStyle.spacer(), open], spacing: 8)

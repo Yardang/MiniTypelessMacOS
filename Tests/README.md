@@ -16,7 +16,7 @@ xcrun swiftc -D DEBUG -D LAYOUT_TEST \
 /tmp/minitypeless-layout-tests/layout-regression
 ```
 
-The test constructs the actual frosted AppKit result window offscreen with synthetic multiline text. It checks 12 combinations: three sizes (500 × 430 minimum, 580 × 550, 900 × 760), previous-result disclosure on/off, and ready/failed content. Copy/insert or recovery actions must fit; long text must wrap and scroll. It also checks settings access, absence of developer controls in the daily window, distinct partial/full-raw labels, honest paste-request wording, and a nonactivating HUD. No microphone, keychain, hotkey monitor, cloud call, or clipboard operation is invoked. Offscreen checks cannot prove live focus behavior or behind-window blur.
+The test constructs the actual frosted AppKit result window offscreen with synthetic multiline text. It checks 36 combinations across System, Light, and Dark appearances: three sizes (500 × 430 minimum, 580 × 550, 900 × 760), previous-result disclosure on/off, and ready/failed content. Copy/insert or recovery actions must fit; long text must wrap and scroll. It also checks settings access, absence of developer controls in the daily window, distinct partial/full-raw labels, honest paste-request wording, and a nonactivating HUD. No microphone, keychain, hotkey monitor, cloud call, or clipboard operation is invoked. Offscreen checks cannot prove live focus behavior or behind-window blur.
 
 For CHG-20261023-01, only targeted manual checks are pending: one ordinary Fn dictation with the main window closed to check HUD focus, copy and reopen; inspect the window over light/dark backgrounds and expand the previous result. The 2026-10-21 ChatGPT/Claude/Obsidian sleep and network-replacement results remain valid historical evidence. The longer manual lists below describe earlier builds, not a request to repeat them all.
 
@@ -114,3 +114,5 @@ Real system sleep, microphone delivery immediately before sleep and target-app f
 ## UI state integration (CHG-20261023-01)
 
 SleepRecoveryRegression now additionally drives real Fn start/stop through success, next-take ASR failure, recording-start failures, refinement failure and explicit retry. It checks that the current body/copy never exposes the previous result as current, raw text is explicitly labelled, prior success remains accessible, and retry ends ready without automatic insertion. LayoutRegression covers geometry and PresentationState labels. Seven offline suites and Debug/Release builds passed; actual clipboard delivery, material rendering and target-app focus require the targeted live checks in the change record.
+
+CHG-20261023-02 additionally checks default System appearance, preference round-trips in an isolated UserDefaults suite, all three settings choices, and layout across the three appearances. Synthetic backdrop screen-composition checks cover light/dark readability; prior recording/network tests are inherited.

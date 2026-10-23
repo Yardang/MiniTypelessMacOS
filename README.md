@@ -10,6 +10,8 @@
 
 UI 迭代（2026-10-23）：**开发完成，实机待验**。采用浅色磨砂结果窗、低饱和状态色和非激活录音胶囊；设置、用量、诊断另开窗口。七组离线回归与 Debug/Release 构建通过，详见 [UI 变更记录](docs/changes/CHG-20261023-01.md)。
 
+外观迭代（2026-10-23）：齿轮 → 外观可选“跟随系统 / 浅色 / 深色”，默认跟随系统并记住选择。macOS 26 使用自适应玻璃，深色模式配浅色文字；旧系统使用原生磨砂。新版独立安装为 UI Preview 2，原版保留。[材质与验证记录](docs/changes/CHG-20261023-02.md)。
+
 Mini Typeless 是一个开发中的 macOS 中文语音输入实验。单独按下并松开左下角 **Fn／地球键** 开始录音，再按一次停止；程序随后用阿里云百炼进行语音转写和轻量文字整理，并尝试把结果插入当前输入框。它不会自动发送聊天消息。
 
 ### 首次使用
@@ -49,6 +51,8 @@ Debug 版本在“诊断与帮助 → 开发工具”中可点击“检测静音
 ## English
 
 Mini Typeless is an experimental Chinese dictation app for macOS. Press and release the **Fn/Globe** key at the lower left to start recording, then repeat to stop. The app transcribes audio with Alibaba Cloud Bailian, lightly cleans up the text, and attempts to insert it into the active input field. It does not send chat messages automatically.
+
+Appearance: choose System (default), Light, or Dark in Settings. The choice persists locally. macOS 26 uses adaptive glass with matching foreground colors; earlier systems retain native frosted material.
 
 ### Getting started
 

@@ -8,6 +8,16 @@ struct LayoutRegression {
     static func main() throws {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
+        let suiteName = "MiniTypeless.ThemeTest." + UUID().uuidString
+        let preferences = UserDefaults(suiteName: suiteName)!
+        defer { preferences.removePersistentDomain(forName: suiteName) }
+        require(InterfaceTheme.load(from: preferences) == .system, "Default must follow system")
+        for theme in InterfaceTheme.allCases {
+            theme.save(to: preferences)
+            require(InterfaceTheme.load(from: preferences) == theme, "Theme preference did not persist")
+        }
+        require(InterfaceTheme.system.appearance == nil, "System theme must inherit live appearance")
+        require(InterfaceTheme.light.appearance?.name == .aqua && InterfaceTheme.dark.appearance?.name == .darkAqua, "Explicit themes mismatch")
         let app = SecureProbe()
         let w = app.makeWindow(), ui = app.resultTestUI
         w.setFrameOrigin(NSPoint(x: -10000, y: -10000))
@@ -22,6 +32,8 @@ struct LayoutRegression {
         state.begin(); state.raw = String(repeating: "合成文字用于检查长文本换行。", count: 300)
         state.phase = .failed
         var checks = 0
+        for theme in InterfaceTheme.allCases {
+        w.appearance = theme.appearance
         for size in [NSSize(width: 500, height: 430), NSSize(width: 580, height: 550), NSSize(width: 900, height: 760)] {
             for prior in [false, true] {
                 for success in [false, true] {
@@ -46,10 +58,13 @@ struct LayoutRegression {
                 }
             }
         }
+        }
         // The actual menu opens settings, where normal configuration and costs remain available.
         app.showSettingsTest()
         let settings = app.settingsTestWindow!
         settings.orderOut(nil); settings.contentView!.layoutSubtreeIfNeeded()
+        let picker = descendants(settings.contentView!).compactMap { $0 as? NSPopUpButton }.first
+        require(picker?.itemTitles == InterfaceTheme.allCases.map(\.title), "Appearance choices missing")
         let titles = descendants(w.contentView!).compactMap { ($0 as? NSButton)?.title }
         require(!titles.contains(where: { $0.contains("30 条") || $0.contains("迁移") || $0.contains("API Key") }), "Developer/setup controls leaked into result window")
         let hud = StatusHUD()

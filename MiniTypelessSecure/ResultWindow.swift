@@ -1,13 +1,25 @@
 import AppKit
 
+enum InterfaceTheme: String, CaseIterable {
+    case system, light, dark
+    var title: String { switch self { case .system: return "跟随系统"; case .light: return "浅色"; case .dark: return "深色" } }
+    var appearance: NSAppearance? { switch self { case .system: return nil; case .light: return NSAppearance(named: .aqua); case .dark: return NSAppearance(named: .darkAqua) } }
+    static func load(from defaults: UserDefaults = .standard) -> Self { Self(rawValue: defaults.string(forKey: "interfaceTheme") ?? "") ?? .system }
+    func save(to defaults: UserDefaults = .standard) { defaults.set(rawValue, forKey: "interfaceTheme") }
+}
+
 @MainActor
 enum QuietStyle {
-    static let blue = NSColor(srgbRed: 0.32, green: 0.45, blue: 0.63, alpha: 1)
-    static let green = NSColor(srgbRed: 0.41, green: 0.57, blue: 0.50, alpha: 1)
-    static let red = NSColor(srgbRed: 0.68, green: 0.43, blue: 0.46, alpha: 1)
-    static let sand = NSColor(srgbRed: 0.70, green: 0.65, blue: 0.49, alpha: 1)
-    static let ink = NSColor(srgbRed: 0.13, green: 0.18, blue: 0.25, alpha: 1)
-    static let secondary = NSColor(srgbRed: 0.36, green: 0.42, blue: 0.51, alpha: 1)
+    private static func adaptive(_ light: NSColor, _ dark: NSColor) -> NSColor {
+        NSColor(name: nil) { appearance in appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light }
+    }
+    static let blue = adaptive(NSColor(srgbRed: 0.32, green: 0.45, blue: 0.63, alpha: 1), NSColor(srgbRed: 0.66, green: 0.78, blue: 0.93, alpha: 1))
+    static let green = adaptive(NSColor(srgbRed: 0.41, green: 0.57, blue: 0.50, alpha: 1), NSColor(srgbRed: 0.64, green: 0.79, blue: 0.71, alpha: 1))
+    static let red = adaptive(NSColor(srgbRed: 0.68, green: 0.43, blue: 0.46, alpha: 1), NSColor(srgbRed: 0.89, green: 0.64, blue: 0.67, alpha: 1))
+    static let sand = adaptive(NSColor(srgbRed: 0.70, green: 0.65, blue: 0.49, alpha: 1), NSColor(srgbRed: 0.84, green: 0.79, blue: 0.63, alpha: 1))
+    static let ink = adaptive(NSColor(srgbRed: 0.13, green: 0.18, blue: 0.25, alpha: 1), NSColor(srgbRed: 0.93, green: 0.95, blue: 0.98, alpha: 1))
+    static let secondary = adaptive(NSColor(srgbRed: 0.36, green: 0.42, blue: 0.51, alpha: 1), NSColor(srgbRed: 0.75, green: 0.81, blue: 0.88, alpha: 1))
+    static let glassTint = adaptive(NSColor.white.withAlphaComponent(0.18), NSColor(srgbRed: 0.07, green: 0.10, blue: 0.15, alpha: 0.32))
     static func color(_ phase: PresentationState.Phase) -> NSColor {
         switch phase {
         case .ready, .pasteRequested: return green
@@ -15,6 +27,29 @@ enum QuietStyle {
         case .needsCopy, .cancelled, .waitingWake, .locked: return sand
         default: return blue
         }
+    }
+    /// Keep the material behind an opaque-content host: never fade text or controls.
+    static func glassSurface(radius: CGFloat) -> (surface: NSView, content: NSView) {
+        let content = NSView()
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = radius
+            glass.tintColor = glassTint
+            glass.contentView = content
+            return (glass, content)
+        }
+        // Older systems retain the supported native frosted material.
+        let glass = NSVisualEffectView()
+        glass.material = .popover; glass.blendingMode = .behindWindow; glass.state = .active
+        glass.wantsLayer = true; glass.layer?.cornerRadius = radius
+        glass.layer?.cornerCurve = .continuous; glass.layer?.masksToBounds = true
+        content.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: glass.leadingAnchor), content.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
+            content.topAnchor.constraint(equalTo: glass.topAnchor), content.bottomAnchor.constraint(equalTo: glass.bottomAnchor)
+        ])
+        return (glass, content)
     }
     static func label(_ text: String, size: CGFloat = 13) -> NSTextField {
         let v = NSTextField(wrappingLabelWithString: text)
@@ -98,14 +133,11 @@ final class ResultWindow {
         window.isReleasedWhenClosed = false; window.isMovableByWindowBackground = true
         window.contentMinSize = NSSize(width: 500, height: 430)
         window.backgroundColor = .clear; window.isOpaque = false; window.hasShadow = true
-        window.appearance = NSAppearance(named: .aqua)
+        window.appearance = InterfaceTheme.load().appearance
         for kind: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] { window.standardWindowButton(kind)?.isHidden = true }
-        let glass = NSVisualEffectView()
-        glass.material = .popover; glass.blendingMode = .behindWindow; glass.state = .active
-        glass.wantsLayer = true; glass.layer?.cornerRadius = 22; glass.layer?.cornerCurve = .continuous
-        glass.layer?.masksToBounds = true; glass.layer?.borderWidth = 0.5
-        glass.layer?.borderColor = NSColor.white.withAlphaComponent(0.35).cgColor
-        window.contentView = glass
+        let surface = QuietStyle.glassSurface(radius: 22)
+        window.contentView = surface.surface
+        let glass = surface.content
         let root = NSStackView(); root.orientation = .vertical; root.alignment = .leading; root.spacing = 12
         root.translatesAutoresizingMaskIntoConstraints = false; glass.addSubview(root)
         NSLayoutConstraint.activate([

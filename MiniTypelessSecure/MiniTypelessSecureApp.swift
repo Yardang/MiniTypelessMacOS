@@ -270,6 +270,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func toolWindow(_ title: String) -> (NSWindow, NSStackView) {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 650), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        w.appearance = InterfaceTheme.load().appearance
         w.title = title; w.isReleasedWhenClosed = false; w.contentMinSize = NSSize(width: 570, height: 450)
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; w.contentView = scroll
         let document = FlippedView(); document.translatesAutoresizingMaskIntoConstraints = false; scroll.documentView = document
@@ -281,10 +282,25 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func fitTools(_ stack: NSStackView) {
         for v in stack.arrangedSubviews { v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
     }
+    @objc private func changeInterfaceTheme(_ sender: NSPopUpButton) {
+        guard InterfaceTheme.allCases.indices.contains(sender.indexOfSelectedItem) else { return }
+        let theme = InterfaceTheme.allCases[sender.indexOfSelectedItem]
+        theme.save()
+        for window in [window, settingsWindow, helpWindow, developerWindow, hud?.panel].compactMap({ $0 }) {
+            window.appearance = theme.appearance
+        }
+        refreshPresentation()
+    }
     @objc private func showSettings() {
         if settingsWindow == nil {
             let (w, root) = toolWindow("设置与用量"); settingsWindow = w
             root.addArrangedSubview(QuietStyle.label("Fn 开始，再按 Fn 结束。关闭结果窗口后，快捷键仍然可用。", size: 15))
+            let themePicker = NSPopUpButton()
+            themePicker.addItems(withTitles: InterfaceTheme.allCases.map(\.title))
+            themePicker.selectItem(at: InterfaceTheme.allCases.firstIndex(of: InterfaceTheme.load())!)
+            themePicker.target = self; themePicker.action = #selector(changeInterfaceTheme(_:))
+            themePicker.setAccessibilityLabel("界面外观")
+            root.addArrangedSubview(QuietStyle.row([QuietStyle.label("外观"), themePicker, QuietStyle.spacer()]))
             _ = addButton("用 Touch ID 解锁本次运行", #selector(unlockSessionKey), to: root)
             _ = addButton("检查快捷键与辅助功能权限", #selector(checkHotkeyPermission), to: root)
             root.addArrangedSubview(settingsNotice)
