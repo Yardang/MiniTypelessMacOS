@@ -106,6 +106,29 @@ struct InputFocusRegression {
         fixture.focus.removeAll()
         fixture.windows["app"] = "window"
         if case .limitReached = fixture.reader.resolve(deadline: .distantFuture, nodeLimit: 1) {} else { fatalError("Enforce traversal limit") }
+        let quick = FocusFixture()
+        quick.focus["app"] = "editor" // Background main window retains a caret.
+        quick.focus["system"] = "panelEditor"
+        quick.roles["panelEditor"] = kAXTextAreaRole
+        quick.selections["panelEditor"] = NSRange(location: 0, length: 0)
+        require(snapshot(quick).element == "panelEditor", "Use actual quick-panel input, not stale main-window editor")
+        quick.subroles["panelEditor"] = kAXSecureTextFieldSubrole
+        require(rejected(quick), "System password field must not fall through to ordinary app editor")
+        quick.subroles.removeAll()
+        quick.roles["panelEditor"] = kAXButtonRole
+        require(rejected(quick), "System button must not fall through to stale app editor")
+        quick.roles["panelEditor"] = kAXTextAreaRole
+        quick.foreign.insert("panelEditor")
+        require(rejected(quick), "System foreign owner must invalidate stale local editor")
+        quick.foreign.removeAll()
+        quick.roles["panelEditor"] = "AXWebArea"
+        quick.children["panelEditor"] = []
+        require(rejected(quick), "Empty focused system container must not use background editor")
+        quick.children["panelEditor"] = ["child"]
+        quick.focused.insert("child"); quick.roles["child"] = kAXTextAreaRole
+        quick.selections["child"] = NSRange(location: 2, length: 0)
+        require(snapshot(quick).element == "child", "Resolve child within authoritative system subtree")
+
         print("PASS: input-focus and manual-fallback cases, including missing app focus, system/window fallbacks, and unsafe/stale target rejection.")
     }
 }

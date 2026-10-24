@@ -43,9 +43,15 @@ struct InputFocusReader<Element: Equatable> {
     func resolve(deadline: Date, nodeLimit: Int = 200) -> InputFocusResult<Element> {
         var sawNonTextFocus = false
         var focusedContainers: [Element] = []
-        for (root, source) in [(app, "应用焦点"), (system, "系统焦点")] {
+        guard Date() < deadline else { return .limitReached }
+        // System keyboard focus is authoritative when present. The application's
+        // own focused editor may belong to a background main window.
+        let systemFocus = focusedElement(system)
+        let candidates: [(Element?, String)] = systemFocus.map { [($0, "系统焦点")] }
+            ?? [(focusedElement(app), "应用焦点")]
+        for (candidate, source) in candidates {
             guard Date() < deadline else { return .limitReached }
-            guard let element = focusedElement(root) else { continue }
+            guard let element = candidate else { continue }
             guard belongsToApp(element), subrole(element) != kAXSecureTextFieldSubrole else { return .rejected }
             if [kAXTextAreaRole, kAXTextFieldRole].contains(role(element)) {
                 return snapshot(element, source: source)

@@ -102,4 +102,7 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 
 旧 README 的支持应用限制以此节为准。独立修复版保留现有 UI、图标、钥匙串和模型。[变更记录](docs/changes/CHG-20261024-02.md)。
 
-焦点诊断预览版：更多 → 本次详情与原始转写 → “检测输入焦点（5 秒后）”，切回目标输入框并保持约 10 秒，采集三份纯元数据到本地诊断日志；不读取文字、不粘贴、不上传。用于排查 Claude 快捷窗口焦点问题，尚未确认根因。[CHG-20261024-03](docs/changes/CHG-20261024-03.md)。
+焦点诊断预览版：更多 → 本次详情与原始转写 → “检测输入焦点（5 秒后）”，切回目标输入框并保持约 10 秒，采集三份纯元数据到本地诊断日志；不读取文字、不粘贴、不上传。三次实机采样已确认 Workspace 前台与系统键盘焦点不一致。[CHG-20261024-03](docs/changes/CHG-20261024-03.md)。
+
+
+快捷窗口修复（2026-10-24）：Mini Typeless Quick Window Fix 优先使用系统确认的键盘接收应用，避免把 Claude 快捷窗口误判为背景应用；输入框解析也优先系统焦点。目标冲突、密码框、按钮和查询错误仍停止插入。保留 UI Preview 8 外观及所有旧安装；八组离线回归与 Debug/Release 构建通过，Claude 快捷窗口真实插入待验。[CHG-20261024-04](docs/changes/CHG-20261024-04.md)。

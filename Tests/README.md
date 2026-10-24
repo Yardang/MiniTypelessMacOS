@@ -128,3 +128,6 @@ HUDRegression：合成状态、透明非激活面板检查 3 秒自动隐藏、�
 ## 通用插入 CHG-20261024-02
 
 InputFocusRegression 补测无主窗口时的焦点容器、容器内密码框、按钮不可跳到其他编辑器、主动无焦点备用、权限错误/超时不可绕过。WorkflowRegression 补测 Safari/微信/Claude/未知应用进入正常目标路由，以及自身应用与第三应用拒绝。真实 Carbon 快捷键冲突、浏览器/快捷窗口编辑器、剪贴板/粘贴仍需实机验收；离线测试不发送文字、不读取钥匙串。
+
+
+CHG-20261024-04：WorkflowRegression 模拟 Workspace 后台 / Claude 系统键盘焦点错配、目标切换、单边缺失及查询错误；InputFocusRegression 检查同应用双编辑器时优先系统焦点，系统不安全控件不回退到主窗旧编辑器。八组离线回归通过；不替代 Claude 快捷窗口实际粘贴验收。

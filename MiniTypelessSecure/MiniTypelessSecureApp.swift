@@ -757,13 +757,13 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func queryInsertionTarget(token: Int, explicitManual: Bool = false) {
         guard AXIsProcessTrusted() else { insertionFallback("辅助功能权限未允许，未插入。"); return }
-        guard let front = NSWorkspace.shared.frontmostApplication,
-              front.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
+        guard let front = InsertionDestination.current(),
+              front.pid != ProcessInfo.processInfo.processIdentifier else {
             let app = InsertionDestination.current()
             insertionFallback("请先选择外部应用的普通输入框（当前：\(app?.name ?? "未知")）。")
             return
         }
-        let pid = front.processIdentifier
+        let pid = front.pid
         let serial = interactionSerial
         // A cold Electron accessibility tree can take longer than a single AX call.
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
@@ -776,7 +776,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func inspectInsertionTarget(pid: pid_t, token: Int, serial: Int, attempt: Int, explicitManual: Bool = false) {
         guard insertionGeneration == token, insertionPending else { return }
         guard interactionSerial == serial,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+              InsertionDestination.current()?.pid == pid else {
             insertionFallback("查询期间输入位置发生变化，未插入。")
             return
         }
@@ -812,7 +812,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             DispatchQueue.main.async {
                 guard let self = self, self.insertionGeneration == token, self.insertionPending else { return }
                 guard self.interactionSerial == serial,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                      InsertionDestination.current()?.pid == pid else {
                     self.insertionFallback("查询期间输入位置发生变化，未插入。")
                     return
                 }
@@ -824,7 +824,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 } else {
                     if canUseCompatibility, explicitManual || (self.compatibilityPasteCheck.state == .on &&
-                       InsertionDestinationPolicy.compatibilityApps.contains(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "")) {
+                       InsertionDestinationPolicy.compatibilityApps.contains(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "")) {
                         self.pasteLatestOnce(pid: pid, token: token, method: explicitManual ? "主动兼容粘贴（未验证输入框）" : "已启用的兼容模式（未验证输入框）")
                     } else {
                         self.insertionFallback(failure)
@@ -862,8 +862,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Clipboard providers can take time to supply data. Recheck the destination
         // after that work, before replacing the pasteboard or posting a paste event.
         guard insertionGeneration == token, insertionPending, interactionSerial == serial,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
-            insertionFallback("准备剪贴板期间前台应用发生变化，未粘贴。")
+              InsertionDestination.current()?.pid == pid else {
+            insertionFallback("准备剪贴板期间键盘目标发生变化，未粘贴。")
             return
         }
         pasteboard.clearContents()

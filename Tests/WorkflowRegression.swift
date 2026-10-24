@@ -71,6 +71,31 @@ struct WorkflowRegression {
         precondition(InsertionDestinationPolicy.decide(target: browser, current: browser, ownPID: 20) == .current)
         guard case .reject = InsertionDestinationPolicy.decide(target: nil, current: codex, ownPID: 20) else { fatalError("Missing target") }
 
+        // Reproduce the diagnostic: Workspace names our window while Claude's
+        // nonactivating panel owns both system keyboard-focus references.
+        let claude = InsertionDestination(pid: 50, bundleID: "com.anthropic.claudefordesktop", name: "Claude")
+        let keyboardPID = KeyboardDestinationPolicy.resolve(workspace: own.pid,
+            application: .process(claude.pid), element: .process(claude.pid))
+        precondition(keyboardPID == claude.pid, "Quick panel must not be mistaken for the background app")
+        let quickTarget = keyboardPID == claude.pid ? claude : own
+        precondition(InsertionDestinationPolicy.capture(current: quickTarget, started: codex, ownPID: own.pid) == claude)
+        precondition(InsertionDestinationPolicy.decide(target: claude, current: quickTarget, ownPID: own.pid) == .current,
+                     "Do not activate Claude's main window when the quick panel already owns keys")
+        guard case .reject = InsertionDestinationPolicy.decide(target: claude, current: other, ownPID: own.pid) else {
+            fatalError("Switching keyboard target during processing must prevent paste")
+        }
+        precondition(KeyboardDestinationPolicy.resolve(workspace: nil, application: .process(50), element: .process(50)) == 50)
+        precondition(KeyboardDestinationPolicy.resolve(workspace: 20, application: .unavailable, element: .unavailable) == 20)
+        precondition(KeyboardDestinationPolicy.resolve(workspace: nil, application: .unavailable, element: .unavailable) == nil)
+        for (app, element): (KeyboardOwner, KeyboardOwner) in [(.process(20), .unavailable), (.unavailable, .process(20))] {
+            precondition(KeyboardDestinationPolicy.resolve(workspace: 20, application: app, element: element) == 20)
+            precondition(KeyboardDestinationPolicy.resolve(workspace: 50, application: app, element: element) == nil)
+        }
+        for (app, element): (KeyboardOwner, KeyboardOwner) in [(.process(20), .process(50)), (.failed, .process(50)),
+            (.process(50), .failed), (.failed, .unavailable), (.unavailable, .failed), (.failed, .failed)] {
+            precondition(KeyboardDestinationPolicy.resolve(workspace: 20, application: app, element: element) == nil)
+        }
+
         // Drive the real app coordinator through its production stop callback and pipeline.
         for automatic in [false, true] {
             let rig = Rig(seconds: automatic ? 600 : 2)

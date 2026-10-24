@@ -47,7 +47,7 @@ final class DiagnosticLog {
         let failure: Failure?
         let focus: FocusProbeSnapshot?
     }
-    static let build = "2026-10-24-focus-probe-1"
+    static let build = "2026-10-24-keyboard-focus-1"
     nonisolated static var defaultDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MiniTypeless", isDirectory: true)
     }

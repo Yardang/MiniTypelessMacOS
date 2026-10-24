@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import ApplicationServices
 
 struct InsertionDestination: Equatable {
     let pid: pid_t
@@ -7,8 +8,45 @@ struct InsertionDestination: Equatable {
     let name: String
 
     static func current() -> Self? {
-        guard let app = NSWorkspace.shared.frontmostApplication, let bundleID = app.bundleIdentifier else { return nil }
-        return Self(pid: app.processIdentifier, bundleID: bundleID, name: app.localizedName ?? bundleID)
+        let workspacePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.1)
+        func owner(_ attribute: String) -> KeyboardOwner {
+            var value: CFTypeRef?
+            let code = AXUIElementCopyAttributeValue(system, attribute as CFString, &value)
+            if code == .noValue || code == .attributeUnsupported { return .unavailable }
+            guard code == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .failed }
+            var pid: pid_t = 0
+            guard AXUIElementGetPid(value as! AXUIElement, &pid) == .success, pid > 0 else { return .failed }
+            return .process(pid)
+        }
+        // A nonactivating quick panel can receive keys while Workspace still names
+        // the background app. Require both system sources before overriding it.
+        guard let pid = KeyboardDestinationPolicy.resolve(workspace: workspacePID,
+                  application: owner(kAXFocusedApplicationAttribute), element: owner(kAXFocusedUIElementAttribute)),
+              let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated,
+              let bundleID = app.bundleIdentifier else { return nil }
+        return Self(pid: pid, bundleID: bundleID, name: app.localizedName ?? bundleID)
+    }
+}
+
+enum KeyboardOwner: Equatable {
+    case process(pid_t)
+    case unavailable
+    case failed
+}
+
+/// Missing metadata can retain the existing route. Contradictory or failed
+/// queries must never silently route a quick-panel dictation to the background.
+enum KeyboardDestinationPolicy {
+    static func resolve(workspace: pid_t?, application: KeyboardOwner, element: KeyboardOwner) -> pid_t? {
+        switch (application, element) {
+        case (.process(let app), .process(let input)): return app == input ? app : nil
+        case (.unavailable, .unavailable): return workspace
+        case (.process(let pid), .unavailable), (.unavailable, .process(let pid)):
+            return pid == workspace ? pid : nil
+        default: return nil
+        }
     }
 }
 
