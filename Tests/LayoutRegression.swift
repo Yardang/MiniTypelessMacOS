@@ -94,6 +94,48 @@ struct LayoutRegression {
         require(picker?.itemTitles == InterfaceTheme.allCases.map(\.title), "Appearance choices missing")
         let titles = descendants(w.contentView!).compactMap { ($0 as? NSButton)?.title }
         require(!titles.contains(where: { $0.contains("30 条") || $0.contains("迁移") || $0.contains("API Key") }), "Developer/setup controls leaked into result window")
+        let settingsUI = app.settingsTestUI!
+        require(settingsUI.usageTools.isHidden && settingsUI.keyTools.isHidden, "Details must start collapsed")
+        require(settingsUI.notice.isHidden, "Settings must not mirror unrelated result status")
+        app.emptyKeyFeedbackTest()
+        require(!settingsUI.notice.isHidden && settingsUI.notice.stringValue.contains("API Key"), "Settings validation must remain visible")
+        let settingsFeedback = settingsUI.notice.stringValue
+        app.setStatusTest("合成转写状态，不属于设置反馈。")
+        require(settingsUI.notice.stringValue == settingsFeedback, "Dictation overwrote settings feedback")
+        app.setUsageTest()
+        require(settingsUI.todaySummary.stringValue == "2.0 分钟 · ¥3.5000", "Usage summary mismatch")
+        require(settingsUI.usageDetails.stringValue.contains("原价约 ¥3.5000"), "Usage detail mismatch")
+        app.toggleUsageTest(); app.toggleKeySetupTest()
+        require(!settingsUI.usageTools.isHidden && !settingsUI.keyTools.isHidden, "Settings disclosures inaccessible")
+        for theme in InterfaceTheme.allCases {
+            settings.appearance = theme.appearance
+            for size in [NSSize(width: 500, height: 420), NSSize(width: 580, height: 720)] {
+                settings.setContentSize(size); settings.contentView!.layoutSubtreeIfNeeded()
+                let document = settingsUI.scroll.documentView!
+                require(document.frame.height > settingsUI.scroll.contentView.bounds.height, "Expanded settings must scroll")
+                for action in [settingsUI.unlock, settingsUI.permissions, settingsUI.keyToggle, settingsUI.saveKey, settingsUI.usageToggle, settingsUI.help, settingsUI.quit] {
+                    let frame = action.convert(action.bounds, to: document)
+                    require(frame.width > 20 && frame.height >= 28 && frame.minX >= 0 && frame.maxX <= document.bounds.width + 1, "Settings action clipped: \(action.title)")
+                }
+                for fixedAction in [settingsUI.help, settingsUI.quit] {
+                    let frame = fixedAction.convert(fixedAction.bounds, to: settings.contentView!)
+                    require(settings.contentView!.bounds.contains(frame), "Footer action must stay visible")
+                }
+                let closeFrame = settingsUI.close.convert(settingsUI.close.bounds, to: settings.contentView!)
+                require(closeFrame.midX < 60 && settings.contentView!.bounds.contains(closeFrame), "Settings close must be top-left")
+            }
+        }
+        app.toggleUsageTest(); app.toggleKeySetupTest()
+        require(settingsUI.usageTools.isHidden && settingsUI.keyTools.isHidden, "Settings disclosures did not collapse")
+        w.contentView!.layoutSubtreeIfNeeded()
+        let closeFrame = ui.close.convert(ui.close.bounds, to: w.contentView!)
+        let gearFrame = ui.settings.convert(ui.settings.bounds, to: w.contentView!)
+        require(closeFrame.midX < 60 && gearFrame.minX > w.contentView!.bounds.midX, "Result header controls misplaced")
+        require(descendants(w.contentView!).contains { ($0 as? NSImageView)?.accessibilityIdentifier() == "minitypeless-waveform" && ($0 as? NSImageView)?.image != nil }, "Waveform identity missing")
+        settingsUI.close.performClick(nil)
+        require(!settings.isVisible, "Settings close did not hide the retained window")
+        app.showSettingsTest(); settings.orderOut(nil)
+        require(app.settingsTestWindow === settings && settingsUI.notice.stringValue == settingsFeedback, "Settings reopen lost state")
         let hud = StatusHUD()
         require(!hud.panel.canBecomeKey && !hud.panel.canBecomeMain, "HUD can steal keyboard focus")
         require(hud.panel.styleMask.contains(.nonactivatingPanel), "HUD activates app")
