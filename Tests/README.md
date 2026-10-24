@@ -124,3 +124,7 @@ CHG-20261023-04 checks nine non-recording HUD states: text is centered on the sa
 CHG-20261023-05 adds settings checks for three appearances and two sizes, scrollable expanded details, fixed help/quit actions, usage summary/detail consistency using synthetic counts, empty-key validation without keychain access, isolation from dictation feedback, retained settings state after close/reopen, and left-side close controls with the waveform identity preserved. The seven offline suites passed; the final footer-only adjustment was checked again with LayoutRegression.
 
 HUDRegression：合成状态、透明非激活面板检查 3 秒自动隐藏、同状态不重现、旧倒计时不影响新录音/处理、notice 隐藏和文字保留；不读取真实录音、网络或钥匙串。
+
+## 通用插入 CHG-20261024-02
+
+InputFocusRegression 补测无主窗口时的焦点容器、容器内密码框、按钮不可跳到其他编辑器、主动无焦点备用、权限错误/超时不可绕过。WorkflowRegression 补测 Safari/微信/Claude/未知应用进入正常目标路由，以及自身应用与第三应用拒绝。真实 Carbon 快捷键冲突、浏览器/快捷窗口编辑器、剪贴板/粘贴仍需实机验收；离线测试不发送文字、不读取钥匙串。

@@ -60,9 +60,15 @@ struct WorkflowRegression {
         precondition(InsertionDestinationPolicy.capture(current: other, started: codex, ownPID: 20) == other)
         precondition(InsertionDestinationPolicy.decide(target: codex, current: codex, ownPID: 20) == .current)
         precondition(InsertionDestinationPolicy.decide(target: codex, current: own, ownPID: 20) == .restore(codex))
-        for (target, current) in [(codex, other), (browser, browser)] {
+        for (target, current) in [(codex, other), (own, own)] {
             guard case .reject = InsertionDestinationPolicy.decide(target: target, current: current, ownPID: 20) else { fatalError("Unexpected redirect") }
         }
+        for bundle in ["com.apple.Safari", "com.tencent.xinWeChat", "com.anthropic.claudefordesktop", "test.browser"] {
+            let target = InsertionDestination(pid: 40, bundleID: bundle, name: "Test")
+            precondition(InsertionDestinationPolicy.decide(target: target, current: target, ownPID: 20) == .current)
+            precondition(InsertionDestinationPolicy.decide(target: target, current: own, ownPID: 20) == .restore(target))
+        }
+        precondition(InsertionDestinationPolicy.decide(target: browser, current: browser, ownPID: 20) == .current)
         guard case .reject = InsertionDestinationPolicy.decide(target: nil, current: codex, ownPID: 20) else { fatalError("Missing target") }
 
         // Drive the real app coordinator through its production stop callback and pipeline.

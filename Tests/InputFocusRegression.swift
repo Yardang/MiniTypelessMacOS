@@ -84,10 +84,28 @@ struct InputFocusRegression {
         fixture.roles["editor"] = kAXTextAreaRole
         fixture.focus["app"] = "container"
         fixture.roles["container"] = "AXWebArea"
+        fixture.children["container"] = ["editor"]
         require(snapshot(fixture).source == "窗口内焦点", "A focused container must resolve to its focused editor")
+        fixture.children["container"] = ["editor"]
+        fixture.windows.removeAll()
+        require(snapshot(fixture).element == "editor", "Quick window / web focus subtree works without focused window")
+        fixture.focus["app"] = "button"; fixture.roles["button"] = kAXButtonRole
+        require(rejected(fixture), "Known button must not fall through to another editor")
+        fixture.focus["app"] = "container"
+        fixture.subroles["editor"] = kAXSecureTextFieldSubrole
+        require(rejected(fixture), "Reject secure child in focused web subtree")
+        fixture.subroles.removeAll()
+        for result: InputFocusResult<String> in [.rejected, .limitReached, .found(InputFocusSnapshot(element: "x", selection: NSRange(location: 0, length: 0), source: "test"))] {
+            require(!ManualPastePolicy.allowsUnknownFocus(result, appCode: .noValue, systemCode: .noValue, explicit: true, automaticCompatibility: true), "Explicit request must not bypass rejection, timeout, or changed confirmation")
+        }
+        let missing: InputFocusResult<String> = .unavailable
+        require(ManualPastePolicy.allowsUnknownFocus(missing, appCode: .noValue, systemCode: .noValue, explicit: true, automaticCompatibility: false), "Explicit missing-focus fallback")
+        require(!ManualPastePolicy.allowsUnknownFocus(missing, appCode: .noValue, systemCode: .noValue, explicit: false, automaticCompatibility: false), "No automatic unknown-focus expansion")
+        require(!ManualPastePolicy.allowsUnknownFocus(missing, appCode: .apiDisabled, systemCode: .noValue, explicit: true, automaticCompatibility: false), "Permission failures cannot be bypassed")
         if case .limitReached = fixture.reader.resolve(deadline: .distantPast) {} else { fatalError("Enforce time limit") }
         fixture.focus.removeAll()
+        fixture.windows["app"] = "window"
         if case .limitReached = fixture.reader.resolve(deadline: .distantFuture, nodeLimit: 1) {} else { fatalError("Enforce traversal limit") }
-        print("PASS: 15 input-focus cases, including missing app focus, system/window fallbacks, and unsafe/stale target rejection.")
+        print("PASS: input-focus and manual-fallback cases, including missing app focus, system/window fallbacks, and unsafe/stale target rejection.")
     }
 }

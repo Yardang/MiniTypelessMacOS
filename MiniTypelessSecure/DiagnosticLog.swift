@@ -45,7 +45,7 @@ final class DiagnosticLog {
         let seconds: Double?
         let failure: Failure?
     }
-    static let build = "2026-10-24-glass-8"
+    static let build = "2026-10-24-insertion-1"
     nonisolated static var defaultDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MiniTypeless", isDirectory: true)
     }

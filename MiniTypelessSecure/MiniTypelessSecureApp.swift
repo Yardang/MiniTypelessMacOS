@@ -86,7 +86,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var insertionPending = false
     private var insertionGeneration = 0
     private var interactionSerial = 0
-    private let supportedInsertApps = InsertionDestinationPolicy.supported
+    private let resultPasteShortcut = ResultPasteShortcut()
+    private var nonModifierInteraction = 0
     private var recordButton = NSButton()
     private var processButton = NSButton()
     private var cancelButton = NSButton()
@@ -202,6 +203,10 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window = makeWindow()
         installPresentationSurfaces()
         installHotkeyMonitors()
+        resultPasteShortcut.action = { [weak self] in self?.pasteCurrentResultShortcut() }
+        if !resultPasteShortcut.start() {
+            status.stringValue = "粘贴快捷键 ⌃⌥⌘V 注册失败；可使用菜单中的兼容粘贴。"
+        }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
         window.makeKeyAndOrderFront(nil)
@@ -322,6 +327,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             root.addArrangedSubview(insertionStatus); root.addArrangedSubview(timingView)
             root.addArrangedSubview(QuietStyle.label("原始转写与处理详情", size: 17))
             let raw = QuietStyle.textScroll(resultView); raw.heightAnchor.constraint(equalToConstant: 220).isActive = true; root.addArrangedSubview(raw)
+            root.addArrangedSubview(QuietStyle.label("⌃⌥⌘V：点击目标输入框后，按下并松开 Control＋Option＋Command＋V，主动粘贴本次完整结果，不发送。", size: 12))
             _ = addButton("打开本地诊断日志", #selector(openDiagnosticLogs), to: root)
             root.addArrangedSubview(QuietStyle.label("日志只记录阶段和错误码，不记录音频、文字或密钥。文字只在本次运行内保留。关闭窗口不退出；退出会清除未另存录音和内存中的文字。", size: 12))
             root.addArrangedSubview(QuietStyle.label("UI 预览版 · 2026-10-23", size: 12))
@@ -426,6 +432,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         insertionGeneration += 1
         insertionPending = false
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        resultPasteShortcut.stop()
         hotkeyMonitors.forEach { NSEvent.removeMonitor($0) }
         micPermissionGeneration += 1
         activeRequestID = nil
@@ -630,7 +637,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let token = insertionGeneration
         insertionPending = true
         setInsertionButtonsEnabled(false)
-        showInsertionStatus("请在 2 秒内切到 Codex、Obsidian 或 Claude 的目标输入框；正在等待你选择位置。")
+        showInsertionStatus("请在 2 秒内切到目标应用并点击普通输入框；正在等待你选择位置。")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             guard let self = self, self.insertionGeneration == token else { return }
             self.queryInsertionTarget(token: token)
@@ -681,41 +688,56 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func compatibilityInsertLatestResult() {
-        guard presentation.result != nil, latestSuccess != nil, !insertionPending, !busy, !recording.isRecording, !micPermissionPending else { return }
+        beginManualPaste(delay: 2)
+    }
+
+    private func pasteCurrentResultShortcut() {
+        beginManualPaste(delay: 0.25)
+    }
+
+    private func beginManualPaste(delay: TimeInterval) {
+        guard presentation.result != nil, latestSuccess != nil, !insertionPending, !busy,
+              !recording.isRecording, !micPermissionPending else { return }
         guard AXIsProcessTrusted() else { insertionFallback("辅助功能权限未允许，未粘贴。"); return }
         insertionGeneration += 1
         let token = insertionGeneration
         insertionPending = true
         setInsertionButtonsEnabled(false)
-        showInsertionStatus("请在 2 秒内切换并点击目标输入框；兼容粘贴不验证输入框，只请求粘贴，不发送。")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        showInsertionStatus(delay > 1 ? "请在 2 秒内切换并点击输入框；仅焦点信息缺失时使用主动兼容粘贴。" : "请松开快捷键；正在准备粘贴本次结果。")
+        let destination = InsertionDestination.current()
+        let interaction = nonModifierInteraction
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.insertionGeneration == token, self.insertionPending else { return }
-            guard let front = NSWorkspace.shared.frontmostApplication,
-                  let bundleID = front.bundleIdentifier, self.supportedInsertApps.contains(bundleID) else {
-                self.insertionFallback("请先切到 Codex、Obsidian 或 Claude 的输入框；未粘贴。")
-                return
-            }
-            let pid = front.processIdentifier
-            let serial = self.interactionSerial
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                guard let self, self.insertionGeneration == token, self.insertionPending else { return }
-                guard self.interactionSerial == serial,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
-                    self.insertionFallback("等待粘贴期间输入位置发生变化，未粘贴。")
-                    return
-                }
-                self.pasteLatestOnce(pid: pid, token: token, method: "手动兼容模式（未验证输入框）")
+            if delay < 1 {
+                self.waitForPasteModifiers(token: token, target: destination, interaction: interaction, remaining: 20)
+            } else {
+                self.queryInsertionTarget(token: token, explicitManual: true)
             }
         }
     }
 
-    private func queryInsertionTarget(token: Int) {
+    private func waitForPasteModifiers(token: Int, target: InsertionDestination?, interaction: Int, remaining: Int) {
+        guard insertionGeneration == token, insertionPending else { return }
+        guard target == InsertionDestination.current(), interaction == nonModifierInteraction else {
+            insertionFallback("快捷键等待期间目标或输入发生变化，未粘贴。"); return
+        }
+        let held = CGEventSource.flagsState(.combinedSessionState).intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+        guard held.isEmpty else {
+            guard remaining > 0 else { insertionFallback("请松开修饰键后重新使用粘贴快捷键。"); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.waitForPasteModifiers(token: token, target: target, interaction: interaction, remaining: remaining - 1)
+            }
+            return
+        }
+        queryInsertionTarget(token: token, explicitManual: true)
+    }
+
+    private func queryInsertionTarget(token: Int, explicitManual: Bool = false) {
         guard AXIsProcessTrusted() else { insertionFallback("辅助功能权限未允许，未插入。"); return }
         guard let front = NSWorkspace.shared.frontmostApplication,
-              let bundleID = front.bundleIdentifier,
-              supportedInsertApps.contains(bundleID) else {
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             let app = InsertionDestination.current()
-            insertionFallback("当前应用“\(app?.name ?? "未知")”（\(app?.bundleID ?? "未知")）尚未支持自动插入。")
+            insertionFallback("请先选择外部应用的普通输入框（当前：\(app?.name ?? "未知")）。")
             return
         }
         let pid = front.processIdentifier
@@ -725,10 +747,10 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let self = self, self.insertionGeneration == token, self.insertionPending else { return }
             self.insertionFallback("输入目标查询超时，未插入。")
         }
-        inspectInsertionTarget(pid: pid, token: token, serial: serial, attempt: 0)
+        inspectInsertionTarget(pid: pid, token: token, serial: serial, attempt: 0, explicitManual: explicitManual)
     }
 
-    private func inspectInsertionTarget(pid: pid_t, token: Int, serial: Int, attempt: Int) {
+    private func inspectInsertionTarget(pid: pid_t, token: Int, serial: Int, attempt: Int, explicitManual: Bool = false) {
         guard insertionGeneration == token, insertionPending else { return }
         guard interactionSerial == serial,
               NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
@@ -737,13 +759,18 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let lookup = AXInputFocusLookup(pid: pid)
-            if attempt == 0 { lookup.enableElectronAccessibility() }
+            let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? ""
+            if attempt == 0 && ["com.openai.codex", "com.openai.chat", "md.obsidian", "com.anthropic.claudefordesktop"].contains(bundleID) {
+                lookup.enableElectronAccessibility()
+            }
             let deadline = Date().addingTimeInterval(1.2)
             let first = lookup.resolve(deadline: deadline)
             var confirmedSource: String?
             var failure = ""
             var canRetry = false
-            var canUseCompatibility = false
+            let canUseCompatibility = ManualPastePolicy.allowsUnknownFocus(first,
+                appCode: lookup.appFocusCode, systemCode: lookup.systemFocusCode,
+                explicit: true, automaticCompatibility: false)
             switch first {
             case .found(let initial):
                 if case .found(let current) = lookup.resolve(deadline: deadline), initial.matches(current) {
@@ -753,13 +780,11 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             case .unavailable:
                 canRetry = true
-                canUseCompatibility = lookup.appFocusCode == .noValue && lookup.systemFocusCode == .noValue
                 failure = "应用和系统均未提供可确认的焦点（应用 \(lookup.appFocusCode.rawValue)，系统 \(lookup.systemFocusCode.rawValue)）；未自动插入。可点击“兼容粘贴（2 秒）”后选择输入框。"
             case .rejected:
                 failure = "当前焦点不是可确认的普通输入框，未插入。"
             case .limitReached:
-                canUseCompatibility = lookup.appFocusCode == .noValue && lookup.systemFocusCode == .noValue
-                failure = "焦点查询达到时间或范围限制，未插入。可使用复制或兼容粘贴。"
+                failure = "焦点查询达到时间或范围限制，未插入。请重新选中输入框再试，或复制文字。"
             }
             DispatchQueue.main.async {
                 guard let self = self, self.insertionGeneration == token, self.insertionPending else { return }
@@ -772,12 +797,12 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.pasteLatestOnce(pid: pid, token: token, method: source)
                 } else if canRetry, attempt == 0 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                        self?.inspectInsertionTarget(pid: pid, token: token, serial: serial, attempt: 1)
+                        self?.inspectInsertionTarget(pid: pid, token: token, serial: serial, attempt: 1, explicitManual: explicitManual)
                     }
                 } else {
-                    if canUseCompatibility, self.compatibilityPasteCheck.state == .on,
-                       InsertionDestinationPolicy.compatibilityApps.contains(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "") {
-                        self.pasteLatestOnce(pid: pid, token: token, method: "已启用的兼容模式（未验证输入框）")
+                    if canUseCompatibility, explicitManual || (self.compatibilityPasteCheck.state == .on &&
+                       InsertionDestinationPolicy.compatibilityApps.contains(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "")) {
+                        self.pasteLatestOnce(pid: pid, token: token, method: explicitManual ? "主动兼容粘贴（未验证输入框）" : "已启用的兼容模式（未验证输入框）")
                     } else {
                         self.insertionFallback(failure)
                     }
@@ -793,6 +818,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             insertionFallback("无法生成粘贴事件，未插入。")
             return
         }
+        let serial = interactionSerial
         let pasteboard = NSPasteboard.general
         guard pasteboard.types?.isEmpty != false || pasteboard.pasteboardItems != nil else {
             insertionFallback("无法完整保存当前剪贴板，未插入。")
@@ -812,7 +838,8 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         // Clipboard providers can take time to supply data. Recheck the destination
         // after that work, before replacing the pasteboard or posting a paste event.
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+        guard insertionGeneration == token, insertionPending, interactionSerial == serial,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
             insertionFallback("准备剪贴板期间前台应用发生变化，未粘贴。")
             return
         }
@@ -880,6 +907,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func handleHotkeyEvent(_ event: NSEvent) {
         interactionSerial += 1
+        let isPasteShortcut = event.type == .keyDown && event.keyCode == 9 &&
+            event.modifierFlags.intersection([.command, .control, .option, .shift]) == [.command, .control, .option]
+        if event.type != .flagsChanged && !isPasteShortcut { nonModifierInteraction += 1 }
         guard AXIsProcessTrusted() else { return }
         if event.type != .flagsChanged {
             if hotkeyArmed { hotkeyDirty = true }

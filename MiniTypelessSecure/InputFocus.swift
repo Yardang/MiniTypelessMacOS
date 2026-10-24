@@ -42,6 +42,7 @@ struct InputFocusReader<Element: Equatable> {
 
     func resolve(deadline: Date, nodeLimit: Int = 200) -> InputFocusResult<Element> {
         var sawNonTextFocus = false
+        var focusedContainers: [Element] = []
         for (root, source) in [(app, "应用焦点"), (system, "系统焦点")] {
             guard Date() < deadline else { return .limitReached }
             guard let element = focusedElement(root) else { continue }
@@ -51,14 +52,16 @@ struct InputFocusReader<Element: Equatable> {
             }
             // A focused web area or container may expose the actual editor below it.
             // Do not treat the container itself as an editable field.
+            guard [kAXWindowRole, kAXGroupRole, kAXScrollAreaRole, "AXWebArea"].contains(role(element)) else { return .rejected }
+            focusedContainers.append(element)
             sawNonTextFocus = true
         }
 
         guard Date() < deadline else { return .limitReached }
-        guard let window = focusedWindow(app), belongsToApp(window) else {
-            return sawNonTextFocus ? .rejected : .unavailable
-        }
-        var pending = [window]
+        // Prefer the actual focused subtree: quick windows may not expose AXFocusedWindow.
+        var pending = focusedContainers
+        if pending.isEmpty, let window = focusedWindow(app), belongsToApp(window) { pending = [window] }
+        if pending.isEmpty { return sawNonTextFocus ? .rejected : .unavailable }
         var visited: [Element] = []
         var candidate: InputFocusSnapshot<Element>?
         while let element = pending.popLast() {
@@ -160,5 +163,13 @@ final class AXInputFocusLookup {
             }
         )
         return reader.resolve(deadline: deadline)
+    }
+}
+
+struct ManualPastePolicy {
+    static func allowsUnknownFocus<Element>(_ result: InputFocusResult<Element>, appCode: AXError,
+        systemCode: AXError, explicit: Bool, automaticCompatibility: Bool) -> Bool {
+        guard case .unavailable = result, appCode == .noValue, systemCode == .noValue else { return false }
+        return explicit || automaticCompatibility
     }
 }
