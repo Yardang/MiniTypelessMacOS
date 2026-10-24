@@ -92,4 +92,4 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 
 图标适配修正（2026-10-23）：Preview 6 实机出现系统额外浅色套框；Preview 7 改用原生 Icon Composer 打包，安装后的系统图标服务已确认外框消失。保留 A 图稿和旧版，用户方便时切换后复看 Dock 即可。[记录](docs/changes/CHG-20261023-07.md)。
 
-提示自动隐藏（2026-10-24）：Preview 8 中未插入、失败等结果提示 3 秒后消失，不再长期遮挡。文字仍可从菜单栏或程序坞打开主窗找回；录音/处理中的提示持续显示。旧版保留。[记录](docs/changes/CHG-20261024-01.md)。
+提示自动隐藏（2026-10-24）：Preview 8 中未插入、失败等结果提示 3 秒后消失，不再长期遮挡。文字仍可从菜单栏或程序坞打开主窗找回；录音/处理中的提示持续显示。旧版保留。10月24日用户确认未插入、失败、成功三种情况实机稳定运行。[记录](docs/changes/CHG-20261024-01.md)。
