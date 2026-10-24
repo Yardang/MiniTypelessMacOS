@@ -97,9 +97,11 @@ final class StatusHUD {
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let frame = screen?.visibleFrame { panel.setFrameOrigin(NSPoint(x: frame.midX - 150, y: frame.minY + 28)) }
         panel.orderFrontRegardless()
-        if state.phase == .ready || state.phase == .pasteRequested {
-            let work = DispatchWorkItem { [weak self] in self?.panel.orderOut(nil) }
-            dismiss = work; DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+        switch state.phase {
+        case .recording, .transcribing, .refining, .waitingWake:
+            break
+        default:
+            scheduleDismissal()
         }
     }
     func notice(_ message: String) {
@@ -110,6 +112,14 @@ final class StatusHUD {
         icon.contentTintColor = QuietStyle.red; label.stringValue = message; label.toolTip = message; open.isHidden = false
         if let frame = NSScreen.main?.visibleFrame { panel.setFrameOrigin(NSPoint(x: frame.midX - 150, y: frame.minY + 28)) }
         panel.orderFrontRegardless()
+        scheduleDismissal()
+    }
+    private func scheduleDismissal() {
+        // Keep lastPhase: refreshing the same result must not show it again.
+        // Only hide the panel; recoverable text/audio belong to the coordinator.
+        let work = DispatchWorkItem { [weak self] in self?.panel.orderOut(nil) }
+        dismiss = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
     }
     func hide() { dismiss?.cancel(); dismiss = nil; panel.orderOut(nil); lastPhase = nil }
 }

@@ -122,3 +122,5 @@ CHG-20261023-03 adds reversible disclosure checks at three initial sizes, repeat
 CHG-20261023-04 checks nine non-recording HUD states: text is centered on the same axis as the recording timer, stays inside the capsule, and does not overlap the visible View action.
 
 CHG-20261023-05 adds settings checks for three appearances and two sizes, scrollable expanded details, fixed help/quit actions, usage summary/detail consistency using synthetic counts, empty-key validation without keychain access, isolation from dictation feedback, retained settings state after close/reopen, and left-side close controls with the waveform identity preserved. The seven offline suites passed; the final footer-only adjustment was checked again with LayoutRegression.
+
+HUDRegression：合成状态、透明非激活面板检查 3 秒自动隐藏、同状态不重现、旧倒计时不影响新录音/处理、notice 隐藏和文字保留；不读取真实录音、网络或钥匙串。
