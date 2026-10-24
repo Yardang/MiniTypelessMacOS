@@ -88,6 +88,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var interactionSerial = 0
     private let resultPasteShortcut = ResultPasteShortcut()
     private var nonModifierInteraction = 0
+    private var focusProbeGeneration = 0
     private var recordButton = NSButton()
     private var processButton = NSButton()
     private var cancelButton = NSButton()
@@ -320,6 +321,25 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         settingsWindow?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
+    @objc private func probeInputFocus() {
+        guard !busy, !recording.isRecording else { return }
+        focusProbeGeneration += 1
+        let generation = focusProbeGeneration
+        status.stringValue = "请在 5 秒内切到 Claude 快捷小窗口，点进输入框并保持约 10 秒；无需打字。"
+        for index in 0..<3 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5 + Double(index * 2)) { [weak self] in
+                guard let self, self.focusProbeGeneration == generation, !self.busy, !self.recording.isRecording else { return }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let snapshot = FocusProbeSnapshot.capture()
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self, self.focusProbeGeneration == generation else { return }
+                        self.diagnostics.record(.focusProbe, index: index + 1, total: 3, focus: snapshot)
+                    }
+                }
+            }
+        }
+    }
+
     @objc private func showHelp() {
         if helpWindow == nil {
             let (w, root) = toolWindow("诊断与帮助"); helpWindow = w
@@ -328,9 +348,11 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             root.addArrangedSubview(QuietStyle.label("原始转写与处理详情", size: 17))
             let raw = QuietStyle.textScroll(resultView); raw.heightAnchor.constraint(equalToConstant: 220).isActive = true; root.addArrangedSubview(raw)
             root.addArrangedSubview(QuietStyle.label("⌃⌥⌘V：点击目标输入框后，按下并松开 Control＋Option＋Command＋V，主动粘贴本次完整结果，不发送。", size: 12))
+            _ = addButton("检测输入焦点（5 秒后）", #selector(probeInputFocus), to: root)
+            root.addArrangedSubview(QuietStyle.label("点击后切到待检查输入框并保持约 10 秒。只记录应用类别、控件类型和错误码，不读取文字、不粘贴。", size: 12))
             _ = addButton("打开本地诊断日志", #selector(openDiagnosticLogs), to: root)
-            root.addArrangedSubview(QuietStyle.label("日志只记录阶段和错误码，不记录音频、文字或密钥。文字只在本次运行内保留。关闭窗口不退出；退出会清除未另存录音和内存中的文字。", size: 12))
-            root.addArrangedSubview(QuietStyle.label("UI 预览版 · 2026-10-23", size: 12))
+            root.addArrangedSubview(QuietStyle.label("日志记录阶段、错误码及主动检测的焦点元数据，不记录音频、文字或密钥。文字只在本次运行内保留。关闭窗口不退出；退出会清除未另存录音和内存中的文字。", size: 12))
+            root.addArrangedSubview(QuietStyle.label("通用插入 · 焦点诊断预览版", size: 12))
             #if DEBUG
             _ = addButton("开发工具…", #selector(showDeveloperTools), to: root)
             #endif
@@ -421,6 +443,7 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        focusProbeGeneration += 1
         diagnostics.record(.terminationRequested)
         lifecycle.invalidateDeferredAudio()
         #if DEBUG

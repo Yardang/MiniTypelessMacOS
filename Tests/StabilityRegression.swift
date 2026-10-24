@@ -54,6 +54,17 @@ struct StabilityRegression {
         let mode = try fm.attributesOfItem(atPath: directory.appendingPathComponent("events.jsonl").path)[.posixPermissions] as! NSNumber
         require(mode.intValue == 0o600, "Log must be owner readable only")
 
+        require(FocusProbeSnapshot.App.classify("private-application-title") == .other, "Never log arbitrary application labels")
+        require(FocusProbeSnapshot.Role.classify("private-field-value", "private-title") == .other, "Never log arbitrary AX strings")
+        let element = FocusProbeSnapshot.Element(code: -25212, pid: 123, app: .claude, role: .text, selectionCode: -25212)
+        let focus = FocusProbeSnapshot(trusted: true, workspacePID: 456, workspaceApp: .other,
+            systemApp: element, systemFocus: element, workspaceWindow: element, workspaceFocus: element,
+            claudeWindow: element, claudeFocus: element)
+        log.record(.focusProbe, index: 1, total: 3, focus: focus)
+        let probeMetadata = try entries(directory).last!["focus"] as! [String: Any]
+        require(Set(probeMetadata.keys) == Set(["trusted", "workspacePID", "workspaceApp", "systemApp", "systemFocus", "workspaceWindow", "workspaceFocus", "claudeWindow", "claudeFocus"]), "Probe has only safe metadata keys")
+        let field = probeMetadata["claudeFocus"] as! [String: Any]
+        require(Set(field.keys) == Set(["code", "pid", "app", "role", "selectionCode"]), "No value, title, URL or selected text")
         let rotated = directory.appendingPathComponent("rotation")
         let small = DiagnosticLog(directory: rotated, limit: 1024, backups: 2)
         for _ in 0..<100 { small.record(.transcribing, operation: UUID(), index: 1, total: 3) }

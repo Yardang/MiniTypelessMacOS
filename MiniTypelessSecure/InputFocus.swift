@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import ApplicationServices
 
 struct InputFocusSnapshot<Element: Equatable> {
@@ -171,5 +171,86 @@ struct ManualPastePolicy {
         systemCode: AXError, explicit: Bool, automaticCompatibility: Bool) -> Bool {
         guard case .unavailable = result, appCode == .noValue, systemCode == .noValue else { return false }
         return explicit || automaticCompatibility
+    }
+}
+
+// Strict metadata-only probe. Never request AXValue, titles, URLs or selected text.
+struct FocusProbeSnapshot: Codable {
+    enum App: String, Codable { case claude, safari, codex, chatgpt, wechat, miniTypeless, other, absent
+        static func classify(_ bundle: String?) -> Self {
+            switch bundle {
+            case "com.anthropic.claudefordesktop": return .claude
+            case "com.apple.Safari": return .safari
+            case "com.openai.codex": return .codex
+            case "com.openai.chat": return .chatgpt
+            case "com.tencent.xinWeChat": return .wechat
+            case "com.minitypeless.app": return .miniTypeless
+            case nil: return .absent
+            default: return .other
+            }
+        }
+    }
+    enum Role: String, Codable { case text, secure, web, group, window, button, application, other
+        static func classify(_ role: String?, _ subrole: String?) -> Self {
+            if subrole == kAXSecureTextFieldSubrole { return .secure }
+            switch role {
+            case kAXTextFieldRole, kAXTextAreaRole: return .text
+            case "AXWebArea": return .web
+            case kAXGroupRole, kAXScrollAreaRole: return .group
+            case kAXWindowRole: return .window
+            case kAXButtonRole: return .button
+            case kAXApplicationRole: return .application
+            default: return .other
+            }
+        }
+    }
+    struct Element: Codable {
+        let code: Int32
+        let pid: Int32?
+        let app: App
+        let role: Role?
+        let selectionCode: Int32?
+    }
+    let trusted: Bool
+    let workspacePID: Int32?
+    let workspaceApp: App
+    let systemApp: Element
+    let systemFocus: Element
+    let workspaceWindow: Element
+    let workspaceFocus: Element
+    let claudeWindow: Element
+    let claudeFocus: Element
+
+    static func capture() -> Self {
+        func value(_ element: AXUIElement, _ attribute: String) -> (AXError, CFTypeRef?) {
+            AXUIElementSetMessagingTimeout(element, 0.1)
+            var result: CFTypeRef?
+            let code = AXUIElementCopyAttributeValue(element, attribute as CFString, &result)
+            return (code, result)
+        }
+        func describe(_ root: AXUIElement?, _ attribute: String) -> Element {
+            guard let root else { return Element(code: AXError.noValue.rawValue, pid: nil, app: .absent, role: nil, selectionCode: nil) }
+            let (code, object) = value(root, attribute)
+            guard code == .success, let object, CFGetTypeID(object) == AXUIElementGetTypeID() else {
+                return Element(code: code.rawValue, pid: nil, app: .absent, role: nil, selectionCode: nil)
+            }
+            let element = object as! AXUIElement
+            var pid: pid_t = 0
+            let owner = AXUIElementGetPid(element, &pid)
+            return Element(code: code.rawValue, pid: owner == .success ? pid : nil,
+                app: .classify(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier),
+                role: .classify(value(element, kAXRoleAttribute).1 as? String, value(element, kAXSubroleAttribute).1 as? String),
+                selectionCode: value(element, kAXSelectedTextRangeAttribute).0.rawValue)
+        }
+        let front = NSWorkspace.shared.frontmostApplication
+        let root = front.map { AXUIElementCreateApplication($0.processIdentifier) }
+        let claude = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.anthropic.claudefordesktop" }
+            .map { AXUIElementCreateApplication($0.processIdentifier) }
+        let system = AXUIElementCreateSystemWide()
+        return Self(trusted: AXIsProcessTrusted(), workspacePID: front?.processIdentifier,
+            workspaceApp: .classify(front?.bundleIdentifier), systemApp: describe(system, kAXFocusedApplicationAttribute),
+            systemFocus: describe(system, kAXFocusedUIElementAttribute), workspaceWindow: describe(root, kAXFocusedWindowAttribute),
+            workspaceFocus: describe(root, kAXFocusedUIElementAttribute), claudeWindow: describe(claude, kAXFocusedWindowAttribute),
+            claudeFocus: describe(claude, kAXFocusedUIElementAttribute))
     }
 }

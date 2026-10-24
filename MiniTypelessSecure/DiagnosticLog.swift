@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class DiagnosticLog {
     enum Event: String, Codable {
+        case focusProbe
         case launch, duplicateInstance, ready, terminationRequested, cleanTermination
         case windowClosed, reopenRequested, windowReopened, sleep, wake
         case recordingRequested, recordingStarted, recordingStopped, recordingLimitReached, recordingFailed
@@ -44,8 +45,9 @@ final class DiagnosticLog {
         let total: Int?
         let seconds: Double?
         let failure: Failure?
+        let focus: FocusProbeSnapshot?
     }
-    static let build = "2026-10-24-insertion-1"
+    static let build = "2026-10-24-focus-probe-1"
     nonisolated static var defaultDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MiniTypeless", isDirectory: true)
     }
@@ -71,7 +73,7 @@ final class DiagnosticLog {
     }
 
     func record(_ event: Event, operation: UUID? = nil, index: Int? = nil,
-                total: Int? = nil, seconds: Double? = nil, failure: Failure? = nil) {
+                total: Int? = nil, seconds: Double? = nil, failure: Failure? = nil, focus: FocusProbeSnapshot? = nil) {
         guard enabled else { return }
         do {
             let fm = FileManager.default
@@ -80,7 +82,7 @@ final class DiagnosticLog {
             let entry = Entry(timestamp: clock.string(from: Date()), session: session,
                               pid: ProcessInfo.processInfo.processIdentifier, build: Self.build,
                               event: event, operation: operation, index: index, total: total,
-                              seconds: seconds.flatMap { $0.isFinite ? $0 : nil }, failure: failure)
+                              seconds: seconds.flatMap { $0.isFinite ? $0 : nil }, failure: failure, focus: focus)
             var data = try JSONEncoder().encode(entry)
             data.append(0x0A)
             let size = (try? fm.attributesOfItem(atPath: file(0).path)[.size] as? NSNumber)?.intValue ?? 0
