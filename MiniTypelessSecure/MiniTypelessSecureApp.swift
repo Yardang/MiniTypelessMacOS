@@ -265,11 +265,14 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func togglePreviousResult() { resultUI.previousExpanded.toggle(); refreshPresentation() }
     @objc private func copyCurrentResult() { copyText(presentation.copyText, message: presentation.result == nil ? "原文已复制" : "文字已复制") }
     @objc private func copyPreviousResult() { copyText(presentation.previous?.text, message: "上次成功文字已复制") }
-    private func copyText(_ text: String?, message: String) {
-        guard let text else { return }
+    @discardableResult
+    private func copyText(_ text: String?, message: String) -> Bool {
+        guard let text else { return false }
         let board = NSPasteboard.general; board.clearContents()
-        resultUI.feedback.stringValue = board.setString(text, forType: .string) ? message : "复制失败，请重新尝试"
+        let copied = board.setString(text, forType: .string)
+        resultUI.feedback.stringValue = copied ? message : "复制失败，请重新尝试"
         resultUI.feedback.isHidden = false
+        return copied
     }
 
     @objc private func showResultMenu() {
@@ -381,7 +384,13 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func quitApp() { NSApp.terminate(nil) }
 
     private func installPresentationSurfaces() {
-        hud = StatusHUD(); bind(hud!.open, #selector(showResultWindow))
+        hud = StatusHUD()
+        hud?.onView = { [weak self] in self?.showResultWindow() }
+        hud?.onCopy = { [weak self] text in
+            guard let self, self.presentation.phase == .needsCopy,
+                  self.presentation.result?.text == text, !self.busy, !self.recording.isRecording else { return false }
+            return self.copyText(text, message: "文字已复制")
+        }
         hudTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { if let self, self.showHUD, self.presentation.phase == .recording { self.hud?.update(self.presentation, sleeping: self.lifecycle.isSleeping) } }
         }

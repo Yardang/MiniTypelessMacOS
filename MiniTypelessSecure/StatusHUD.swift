@@ -17,11 +17,15 @@ final class StatusHUD {
     let recordingTime = QuietStyle.label("00:00", size: 15)
     let recordingHint = QuietStyle.label("Fn 结束", size: 11)
     let open = QuietStyle.button("查看")
+    var onCopy: ((String) -> Bool)?
+    var onView: (() -> Void)?
+    private var copyCandidate: String?
     private var lastPhase: PresentationState.Phase?
     private var dismiss: DispatchWorkItem?
 
     init() {
         panel = PassivePanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 48), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        open.target = self; open.action = #selector(performAction)
         panel.level = .floating; panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
@@ -87,6 +91,8 @@ final class StatusHUD {
             label.stringValue = state.phase == .pasteRequested ? "已请求插入" : state.title
         }
         label.toolTip = label.stringValue
+        copyCandidate = state.phase == .needsCopy ? state.result?.text : nil
+        open.title = copyCandidate == nil ? "查看" : "复制"
         open.isHidden = state.phase == .recording || processing
     }
     func update(_ state: PresentationState, sleeping: Bool) {
@@ -104,7 +110,21 @@ final class StatusHUD {
             scheduleDismissal()
         }
     }
+    @objc private func performAction() {
+        guard !open.isHidden, panel.isVisible else { return }
+        guard let text = copyCandidate else { onView?(); return }
+        let copied = onCopy?(text) == true
+        label.stringValue = copied ? "已复制，可直接粘贴" : "复制失败，请重试"
+        label.toolTip = label.stringValue
+        if copied {
+            icon.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "已复制")
+            icon.contentTintColor = QuietStyle.color(.ready)
+            copyCandidate = nil; open.isHidden = true
+        }
+        dismiss?.cancel(); scheduleDismissal()
+    }
     func notice(_ message: String) {
+        copyCandidate = nil; open.title = "查看"
         dismiss?.cancel(); lastPhase = nil
         recordingContent.isHidden = true; statusContent.isHidden = false
         spinner.stopAnimation(nil); spinner.isHidden = true; icon.isHidden = false
@@ -121,5 +141,5 @@ final class StatusHUD {
         dismiss = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
     }
-    func hide() { dismiss?.cancel(); dismiss = nil; panel.orderOut(nil); lastPhase = nil }
+    func hide() { copyCandidate = nil; dismiss?.cancel(); dismiss = nil; panel.orderOut(nil); lastPhase = nil }
 }

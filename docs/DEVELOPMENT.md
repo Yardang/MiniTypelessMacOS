@@ -19,3 +19,7 @@ PRD 说明“产品应该怎样工作”；变更记录说明“为何改、改�
 ## 初学者说明
 
 “回归测试”是检查修改有没有让原来正常的功能退步。“验收条件”应具体可观察，例如“重复收到两次唤醒通知只发出一次转写请求”，而非“睡眠功能正常”。“基线”是本次修改前可对照、可恢复的版本。
+
+## 本地目录约定（2026-10-24 用户确认）
+
+项目根目录 `/Users/yardang/Application Development/01 Mini Typeless`。源码、文档、测试及构建中间文件均放 `01 Mini Typeless Development`；交付的可运行 .app 放 `02 Mini Typeless Application`。主仓库为前者下的 `MiniTypelessSecure`。并行 UI/功能开发使用独立 Git 工作目录；当前功能工作目录为同层 `MiniTypeless-Feature`，共享同一仓库分支记录，不切换另一个对话的工作目录。历史交付路径保留当时记录，查找现用应用以新目录为准。

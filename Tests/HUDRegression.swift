@@ -13,7 +13,18 @@ struct HUDRegression {
         hud.panel.alphaValue = 0 // Exercise visibility without covering the user's desktop.
         var state = PresentationState()
         state.begin(); state.complete("Synthetic recoverable result"); state.phase = .needsCopy
+        var copies: [String] = []
+        var views = 0
+        var copySucceeds = false
+        hud.onCopy = { text in copies.append(text); return copySucceeds }
+        hud.onView = { views += 1 }
         hud.update(state, sleeping: false)
+        require(hud.open.title == "复制", "Complete uninserted result must offer Copy")
+        hud.open.performClick(nil)
+        require(copies == ["Synthetic recoverable result"] && views == 0 && !hud.open.isHidden, "Failure must allow retry without opening window")
+        copySucceeds = true
+        hud.open.performClick(nil)
+        require(copies.count == 2 && views == 0 && hud.open.isHidden, "Copy must use current result without opening window")
         require(hud.panel.isVisible, "Missing initial needsCopy feedback")
         try await Task.sleep(nanoseconds: 3_300_000_000)
         require(!hud.panel.isVisible, "Insertion failure HUD must dismiss after three seconds")
@@ -34,7 +45,19 @@ struct HUDRegression {
             try await Task.sleep(nanoseconds: 3_300_000_000)
             require(hud.panel.isVisible && hud.open.isHidden, "Stale timeout hid active phase: \(phase)")
         }
+        require(copies.count == 2, "Recording/processing must not copy stale text")
+        var empty = PresentationState()
+        empty.previous = state.result
+        empty.raw = "Partial raw text"
+        empty.phase = .needsCopy
+        hud.update(empty, sleeping: false)
+        require(hud.open.title == "查看", "No complete current result must not copy previous or partial text")
+        hud.open.performClick(nil)
+        require(views == 1 && copies.count == 2, "Missing result must retain View behavior")
         hud.notice("Synthetic recording start failure")
+        require(hud.open.title == "查看", "Notice must clear stale Copy action")
+        hud.open.performClick(nil)
+        require(views == 2 && copies.count == 2, "Notice must open details, never copy old text")
         require(hud.panel.isVisible && !hud.open.isHidden, "Notice missing")
         try await Task.sleep(nanoseconds: 3_300_000_000)
         require(!hud.panel.isVisible, "Notice must also expire")

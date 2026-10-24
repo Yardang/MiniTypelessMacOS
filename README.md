@@ -106,3 +106,5 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 
 
 快捷窗口修复（2026-10-24）：Mini Typeless Quick Window Fix 优先使用系统确认的键盘接收应用，避免把 Claude 快捷窗口误判为背景应用；输入框解析也优先系统焦点。目标冲突、密码框、按钮和查询错误仍停止插入。保留 UI Preview 8 外观及所有旧安装；八组离线回归与 Debug/Release 构建通过，Claude 桌面快捷窗口实际插入已由用户于 10 月 24 日确认通过；其他新目标仍分别验收。[CHG-20261024-04](docs/changes/CHG-20261024-04.md)。
+
+快捷复制（2026-10-24）：Quick Copy 在“文字已生成，未插入”胶囊上提供“复制”，点击后直接 Command-V 到目标输入框，无需打开主窗；没有本次完整结果时仍可查看原因。沿用三秒提示自动隐藏，文字仍保留在主窗。[CHG-20261024-05](docs/changes/CHG-20261024-05.md)。
