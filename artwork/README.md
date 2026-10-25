@@ -1,3 +1,19 @@
+# Current icon — B3 Short (2026-10-25)
+
+User-approved Dock concept: `AppIcon-approved-concept.png`; monochrome menu concept: `MenuBar-approved-concept.png`. Both are design references, not system screenshots. Three unequal crests, two troughs, then a direct transition to a short flat connector and upright dotted lowercase i. The terminal connector has no extra dip or crest.
+
+`AppIcon-source.png` is the built-in image_gen production extraction of the approved large tile, copied byte-for-byte to `MiniTypelessSecure/AppIcon.icon/Assets/Approved.png`. The cool blue metallic glass and silver rim are baked raster artwork. Generation: exec-523d7550-b2d3-4c28-ab88-8c9424c6f3ff.png, from exec-12c32cdf-6372-473b-b774-d5d3c87071aa.png; menu concept exec-2360e722-a267-4295-9fd4-f1c00e927485.png. All consumed sources are stored here, not external-path dependencies.
+
+The original menu path in `MiniTypelessSecure/MenuBarIcon.swift` follows the approved B3 silhouette, optically adjusted to 24×18 pt with 1.55 pt rounded strokes. It is a transparent template with no custom foreground tint; AppKit owns light/dark styling. It contains no SF Symbols paths. Dock is raster and menu is vector; these are separate renderings of the same approved design, not byte-identical or a shared vector master.
+
+Native Icon Composer packing, Assets.car and fallback ICNS remain. This source has more exterior margin than the preceding image: scale 0.88, translation [0,0] was selected after comparing 0.84/0.88 to retain the silver rim without an exposed outer plate. Recheck system-rendered sizes when changing the source again. See [CHG-20261025-04](../docs/changes/CHG-20261025-04.md) for delivery and verification.
+
+Production extraction: isolate only the large approved B3 Short tile; preserve geometry, material, glyph padding and full silver rim; remove labels, white presentation background and small duplicate; request true alpha outside the tile, centered on a square canvas. Native packaging masks the exterior alpha fringe; do not use the generated board as the app icon directly.
+
+Earlier artwork and settings below are historical; current consumed files have been replaced. Recover the previous accepted wave-i artwork at Git 64847ac.
+
+---
+
 # App icon — wave to upright lowercase i
 
 Selected concept: `AppIcon-approved-concept.png`. Production transparent tile: `AppIcon-source.png`, copied byte-for-byte to `MiniTypelessSecure/AppIcon.icon/Assets/Approved.png`. Generated with built-in image_gen; not an SF Symbol. User approved the connected asymmetric wave / upright lowercase i concept. Menu-bar and in-window symbols remain unchanged.

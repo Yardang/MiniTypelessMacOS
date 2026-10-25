@@ -116,3 +116,5 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 图标边距修正（2026-10-25）：保留声波接 i 原图，重新校准原生图标图层，恢复银色玻璃外缘和留白；旧版保留。10月25日用户提供 Dock 截图并确认外观验收通过。[记录](docs/changes/CHG-20261025-02.md)。
 
 菜单栏图标（2026-10-25）：自有单色声波接竖直 i，无底板，黑白由系统外观管理。录音/处理状态仍由胶囊提示。10月25日用户截图确认当前菜单栏外观通过。[记录](docs/changes/CHG-20261025-03.md)。
+
+B3 Short 图标（2026-10-25）：Dock 与菜单栏统一改为三个波峰接短横线和竖直 i；保留金属玻璃银边和菜单栏系统黑白适配。离屏图形检查、Debug/Release 构建及签名通过，独立安装 Mini Typeless B3 Short.app，旧版保留，新版实机外观待验。[实现与验收记录](docs/changes/CHG-20261025-04.md)。
