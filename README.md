@@ -114,3 +114,5 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 应用图标更新（2026-10-25）：采用已选定的声波接竖直小写 i 深色玻璃图标，继承 Quick Copy 功能；菜单栏小标留待独立讨论。[接入与验证记录](docs/changes/CHG-20261025-01.md)。
 
 图标边距修正（2026-10-25）：保留声波接 i 原图，重新校准原生图标图层，恢复银色玻璃外缘和留白；旧版保留。10月25日用户提供 Dock 截图并确认外观验收通过。[记录](docs/changes/CHG-20261025-02.md)。
+
+菜单栏图标（2026-10-25）：自有单色声波接竖直 i，无底板，黑白由系统外观管理。录音/处理状态仍由胶囊提示。[记录](docs/changes/CHG-20261025-03.md)。

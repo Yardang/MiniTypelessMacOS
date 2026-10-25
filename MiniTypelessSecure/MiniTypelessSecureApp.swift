@@ -257,7 +257,6 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         insertionPending: insertionPending, detailMessage: status?.stringValue ?? "")
         if showHUD { hud?.update(presentation, sleeping: lifecycle.isSleeping) }
         statusItem?.button?.toolTip = "Mini Typeless · " + presentation.title
-        statusItem?.button?.contentTintColor = QuietStyle.color(presentation.phase)
     }
 
     @objc private func showResultWindow() { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
@@ -394,8 +393,9 @@ final class SecureProbe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hudTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { if let self, self.showHUD, self.presentation.phase == .recording { self.hud?.update(self.presentation, sleeping: self.lifecycle.isSleeping) } }
         }
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem?.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Mini Typeless")
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem?.button?.image = MenuBarIcon.makeImage()
+        statusItem?.button?.contentTintColor = nil
         let menu = NSMenu()
         for (title, action) in [("查看结果", #selector(showResultWindow)), ("设置与用量", #selector(showSettings)), ("诊断与帮助", #selector(showHelp)), ("退出 Mini Typeless", #selector(quitApp))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)

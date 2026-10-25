@@ -131,3 +131,15 @@ InputFocusRegression 补测无主窗口时的焦点容器、容器内密码框�
 
 
 CHG-20261024-04：WorkflowRegression 模拟 Workspace 后台 / Claude 系统键盘焦点错配、目标切换、单边缺失及查询错误；InputFocusRegression 检查同应用双编辑器时优先系统焦点，系统不安全控件不回退到主窗旧编辑器。八组离线回归通过；不替代 Claude 快捷窗口实际粘贴验收。
+
+## Menu-bar icon (2026-10-25)
+
+Targeted offscreen AppKit test; no microphone, network, keychain, clipboard, visible menu-bar item or window. Checks the original vector template's transparency/clipping and dark/light button rendering; not a substitute for actual menu-bar/wallpaper validation. Separate from the historical eight-suite runner.
+
+```sh
+mkdir -p ../BuildArtifacts/menu-icon-tests
+xcrun swiftc -module-cache-path ../BuildArtifacts/menu-icon-tests/module-cache \
+  MiniTypelessSecure/MenuBarIcon.swift Tests/MenuBarIconRegression.swift \
+  -o ../BuildArtifacts/menu-icon-tests/regression
+../BuildArtifacts/menu-icon-tests/regression ../BuildArtifacts/menu-icon-tests
+```
