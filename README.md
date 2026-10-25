@@ -112,3 +112,5 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 10 月 24 日用户确认 Quick Copy 的快捷复制测试通过；微信自动插入仍需单独诊断，不以复制成功替代自动插入验收。
 
 应用图标更新（2026-10-25）：采用已选定的声波接竖直小写 i 深色玻璃图标，继承 Quick Copy 功能；菜单栏小标留待独立讨论。[接入与验证记录](docs/changes/CHG-20261025-01.md)。
+
+图标边距修正（2026-10-25）：保留声波接 i 原图，重新校准原生图标图层，恢复银色玻璃外缘和留白；旧版保留。[记录](docs/changes/CHG-20261025-02.md)。

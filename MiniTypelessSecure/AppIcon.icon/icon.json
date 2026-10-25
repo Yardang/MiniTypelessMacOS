@@ -11,10 +11,10 @@
           "name": "Approved artwork",
           "glass": false,
           "position": {
-            "scale": 1.03,
+            "scale": 0.84,
             "translation-in-points": [
               0,
-              6
+              0
             ]
           }
         }

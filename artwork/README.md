@@ -2,7 +2,7 @@
 
 Selected concept: `AppIcon-approved-concept.png`. Production transparent tile: `AppIcon-source.png`, copied byte-for-byte to `MiniTypelessSecure/AppIcon.icon/Assets/Approved.png`. Generated with built-in image_gen; not an SF Symbol. User approved the connected asymmetric wave / upright lowercase i concept. Menu-bar and in-window symbols remain unchanged.
 
-The native Icon Composer pipeline remains in place, with Assets.car and fallback ICNS. Glass appearance is baked into the icon, not live desktop blur. The prior A artwork remains recoverable through Git (c9c8e8a and earlier). See [CHG-20261025-01](../docs/changes/CHG-20261025-01.md).
+The native Icon Composer pipeline remains in place, with Assets.car and fallback ICNS. For this new artwork, layer scale is 0.84 and translation is [0, 0]; calibrated against all four silver edges and glyph margins (CHG-20261025-02). The 1.03 / 6 pt settings below describe the historical artwork only. Glass appearance is baked into the icon, not live desktop blur. The prior A artwork remains recoverable through Git (c9c8e8a and earlier). See [CHG-20261025-01](../docs/changes/CHG-20261025-01.md).
 
 ## Production extraction prompt (built-in image_gen)
 
