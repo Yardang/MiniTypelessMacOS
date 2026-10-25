@@ -110,3 +110,5 @@ This is an experimental build. Text refinement can occasionally change meaning, 
 快捷复制（2026-10-24）：Quick Copy 在“文字已生成，未插入”胶囊上提供“复制”，点击后直接 Command-V 到目标输入框，无需打开主窗；没有本次完整结果时仍可查看原因。沿用三秒提示自动隐藏，文字仍保留在主窗。[CHG-20261024-05](docs/changes/CHG-20261024-05.md)。
 
 10 月 24 日用户确认 Quick Copy 的快捷复制测试通过；微信自动插入仍需单独诊断，不以复制成功替代自动插入验收。
+
+应用图标更新（2026-10-25）：采用已选定的声波接竖直小写 i 深色玻璃图标，继承 Quick Copy 功能；菜单栏小标留待独立讨论。[接入与验证记录](docs/changes/CHG-20261025-01.md)。

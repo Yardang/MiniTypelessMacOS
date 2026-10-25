@@ -1,3 +1,17 @@
+# App icon — wave to upright lowercase i
+
+Selected concept: `AppIcon-approved-concept.png`. Production transparent tile: `AppIcon-source.png`, copied byte-for-byte to `MiniTypelessSecure/AppIcon.icon/Assets/Approved.png`. Generated with built-in image_gen; not an SF Symbol. User approved the connected asymmetric wave / upright lowercase i concept. Menu-bar and in-window symbols remain unchanged.
+
+The native Icon Composer pipeline remains in place, with Assets.car and fallback ICNS. Glass appearance is baked into the icon, not live desktop blur. The prior A artwork remains recoverable through Git (c9c8e8a and earlier). See [CHG-20261025-01](../docs/changes/CHG-20261025-01.md).
+
+## Production extraction prompt (built-in image_gen)
+
+Precise extraction of approved app icon, NOT redesign. Extract ONLY the large blue glass rounded-square icon from the reference presentation card, preserving its exact silver rim, blue glass texture, lighting, and white waveform connecting via tight elbow to perfectly VERTICAL lowercase i with centered dot. Remove the surrounding white presentation background, top-left label, and small black glyph beneath completely. Output a single square PNG with TRUE transparent alpha outside the rounded icon. Enlarge the extracted tile so its outer square bounds nearly fill the canvas, approximately 96% of canvas width and height, centered with equal tiny transparent margins. No extra pedestal, no new background, no separate dark glyph, no labels. Preserve left asymmetric two wave crests, short flat transition, crisp upright i exactly from source. Preserve original style and proportions, not a new interpretation. This will be a production macOS icon artwork; only isolate and scale the approved large tile.
+
+Generation: exec-6e5a8b93-594a-4545-b3e5-4284bdbc0c3b.png. Approved concept: exec-bc9abec2-5a40-4616-85df-958fbc963113.png. Source files are stored in the repository, independent of external generation paths.
+
+## Historical artwork documentation (superseded)
+
 # App icon — selected A concept
 
 `AppIcon-source.png` is the imagegen-generated artwork selected by the user on 2026-10-23: dark graphite blue-gray glass, three unequal crests, silver-white continuous waveform. It is not an exported SF Symbol. The transparent-background B exploration was not selected. This provenance is not trademark clearance.
